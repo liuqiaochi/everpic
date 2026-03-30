@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# 运行时生成的数据文件（不提交到仓库）
+nonebot-plugin-everpic/images/
+nonebot-plugin-everpic/blacklist.json
+nonebot-plugin-everpic/points.json
+nonebot-plugin-everpic/group_settings.json
+nonebot-plugin-everpic/permissions.json
+nonebot-plugin-everpic/user_settings.json
+
+# 测试文件
+test_*.png
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# macOS
+.DS_Store

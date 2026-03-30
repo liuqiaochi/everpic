@@ -1,0 +1,148 @@
+import base64
+from nonebot import on_message, logger
+from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent, MessageSegment
+from nonebot.rule import Rule
+
+from ..config import MAX_CONCURRENT_JOBS, DRAW_COST, IMAGE_SAVE_DIR
+from ..data import find_character, find_variant, is_variant_matched
+from ..store import (
+    is_blacklisted, is_super_admin, is_group_enabled,
+    is_nsfw_filter_on, get_user_points, deduct_points,
+    get_draw_settings,
+)
+from ..nsfw import check_nsfw
+from ..api import call_generate, poll_until_done
+from ..jobs import create_job, remove_job, active_count
+
+
+async def _rule(event: MessageEvent) -> bool:
+    if not isinstance(event, GroupMessageEvent):
+        return False
+    text = event.get_plaintext().strip()
+    return text.startswith("画图 ") or text == "画图"
+
+
+matcher = on_message(rule=Rule(_rule), priority=10, block=True)
+
+
+def _parse_args(text: str):
+    rest = text[len("画图"):].strip()
+    if not rest:
+        return None, None, None
+    parts = rest.split(maxsplit=2)
+    char_kw = parts[0]
+    variant_kw = parts[1] if len(parts) >= 2 else ""
+    prompt = parts[2] if len(parts) >= 3 else ""
+    return char_kw, variant_kw, prompt
+
+
+@matcher.handle()
+async def handle(event: GroupMessageEvent):
+    # 群开关
+    if not is_group_enabled(event.group_id):
+        await matcher.finish("❌ 本群未开启 EverPic 画图功能，请联系超级管理员发送 everpic开启")
+
+    # 黑名单
+    if is_blacklisted(event.user_id):
+        await matcher.finish("❌ 你已被拉黑，无法使用画图功能")
+
+    # 积分（超管跳过）
+    is_sa = is_super_admin(event.user_id)
+    if not is_sa:
+        pts = get_user_points(event.user_id)
+        if pts < DRAW_COST:
+            await matcher.finish(
+                f"❌ 积分不足！当前积分: {pts}，需要: {DRAW_COST}\n发送 everpic签到 获取积分"
+            )
+
+    # 并发
+    if active_count() >= MAX_CONCURRENT_JOBS:
+        await matcher.finish(
+            f"当前已有 {active_count()} 个任务生成中（上限{MAX_CONCURRENT_JOBS}），请稍后再试！"
+        )
+
+    # 解析参数
+    text = event.get_plaintext().strip()
+    char_kw, variant_kw, prompt = _parse_args(text)
+
+    if not char_kw:
+        await matcher.finish(
+            "用法: 画图 角色名 [变体名] [Prompt关键词]\n"
+            "角色名支持中文名/韩文名/别称\n"
+            "变体可选，不填则使用默认\n"
+            "Prompt关键词可选"
+        )
+
+    char = find_character(char_kw)
+    if not char:
+        await matcher.finish(f"找不到角色「{char_kw}」，请发送 everpic角色 查看角色列表")
+
+    # 变体匹配
+    actual_variant_kw = variant_kw or ""
+    actual_prompt = prompt or ""
+
+    if actual_variant_kw and is_variant_matched(char, actual_variant_kw):
+        variant = find_variant(char, actual_variant_kw)
+    elif actual_variant_kw:
+        actual_prompt = (actual_variant_kw + " " + actual_prompt).strip()
+        variant = char["variants"][0]
+    else:
+        variant = char["variants"][0]
+
+    # NSFW 过滤
+    if is_nsfw_filter_on(event.group_id) and actual_prompt:
+        hit = check_nsfw(actual_prompt)
+        if hit:
+            await matcher.finish(f"🔞 Prompt 包含违禁内容「{hit}」，已拦截")
+
+    # 第一条消息
+    info = (
+        f"🎨 开始创建画图\n"
+        f"角色: {char['name_cn']} ({char['name']})\n"
+        f"变体: {variant.get('name_cn', variant['name'])}\n"
+        f"Prompt: {actual_prompt if actual_prompt else '(默认)'}"
+    )
+    await matcher.send(info)
+
+    # 创建任务记录
+    job_info = create_job(
+        user_id=event.user_id,
+        group_id=event.group_id,
+        char_name=char["name_cn"],
+        variant_name=variant.get("name_cn", variant["name"]),
+    )
+
+    try:
+        user_settings = get_draw_settings(event.user_id)
+        job_id = await call_generate(char, variant, actual_prompt, user_settings)
+        job_info.job_id = job_id
+        job_info.status = "排队中"
+
+        async def on_progress():
+            job_info.status = "生成中"
+            await matcher.send("⏳ 开始生成图片")
+
+        img_bytes = await poll_until_done(job_id, on_progress)
+
+        # 保存
+        save_path = IMAGE_SAVE_DIR / f"{job_id}.png"
+        save_path.write_bytes(img_bytes)
+        logger.info(f"[EverPic] 图片已保存: {save_path}")
+
+        # 发送图片
+        b64 = base64.b64encode(img_bytes).decode()
+        await matcher.send(MessageSegment.image(f"base64://{b64}"))
+
+        # 扣积分
+        if not is_sa:
+            remaining = deduct_points(event.user_id, DRAW_COST)
+            await matcher.send(f"💰 消耗 {DRAW_COST} 积分，剩余: {remaining}")
+
+    except RuntimeError as e:
+        logger.error(f"[EverPic] 生成失败: {e}")
+        await matcher.send(f"❌ 生成失败: {e}")
+    except Exception as e:
+        logger.exception(f"[EverPic] 未知错误: {e}")
+        await matcher.send(f"❌ 生成失败: {e}")
+    finally:
+        remove_job(job_info)
