@@ -1,0 +1,19 @@
+{
+  "enabled": true,
+  "name": "Auto Git Commit & Push",
+  "description": "When any project file is edited, automatically stage, commit with a descriptive message, and push to GitHub",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "*.py",
+      "*.json",
+      "*.html",
+      "*.yaml"
+    ]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "git add -A && git diff --cached --quiet || git commit -m \"auto: update $(date +%Y-%m-%d_%H:%M:%S)\" && git push origin main 2>/dev/null || true"
+  }
+}
