@@ -6,8 +6,9 @@ from .config import EVERPIC_API
 
 
 async def call_generate(char: dict, variant: dict, user_prompt: str,
-                       draw_settings: dict | None = None) -> str:
-    """提交生成请求，返回 job_id。draw_settings 为用户自定义画图参数。"""
+                       draw_settings: dict | None = None,
+                       return_body: bool = False) -> str | tuple[str, dict]:
+    """提交生成请求，返回 job_id。return_body=True 时返回 (job_id, body)。"""
     from .config import (
         DEFAULT_MODEL_STRENGTH, DEFAULT_CLIP_STRENGTH,
         DEFAULT_STEPS, DEFAULT_CFG_SCALE, DEFAULT_NEGATIVE,
