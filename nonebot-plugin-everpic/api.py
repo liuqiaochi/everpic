@@ -66,6 +66,8 @@ async def call_generate(char: dict, variant: dict, user_prompt: str,
         job_id = resp.json().get("id", str(resp.json()))
 
     logger.info(f"[EverPic] 获得 job_id: {job_id}")
+    if return_body:
+        return job_id, body
     return job_id
 
 
