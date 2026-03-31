@@ -28,20 +28,30 @@ _EN_WORDS = [
 
 # 英文多词短语（用子串匹配即可，本身已足够具体）
 _EN_PHRASES = [
-    "spread legs", "spread_legs",
-    "panties down", "panties_down",
+    "spread legs", "spread_legs", "open legs", "open_legs",
+    "panties down", "panties_down", "panties aside", "panties_aside",
     "no panties", "no_panties", "no bra", "no_bra",
-    "breast grab", "breast_grab", "breast sucking",
-    "thighhighs only", "underwear only",
+    "no clothes", "no_clothes", "no underwear", "no_underwear",
+    "breast grab", "breast_grab", "breast sucking", "breast_sucking",
+    "nipple sucking", "nipple_sucking", "nipple pinch", "nipple_pinch",
+    "thighhighs only", "underwear only", "nude filter",
+    "pussy juice", "pussy_juice", "love juice", "love_juice",
+    "sex toy", "sex_toy", "ball gag", "ball_gag",
+    "body writing", "body_writing", "slave collar",
+    "after sex", "after_sex", "used condom",
 ]
 
 # 中文关键词（子串匹配，中文没有词边界问题）
 _CN_KEYWORDS = [
     "裸体", "裸露", "色情", "性交", "做爱", "口交", "手交",
     "自慰", "高潮", "射精", "潮吹", "乳头", "阴道", "阴茎",
-    "肛门", "内射", "中出", "无码", "里番",
-    "强奸", "轮奸", "捆绑", "调教", "触手",
-    "脱衣", "露出", "不穿", "没穿",
+    "阴蒂", "阴唇", "肛门", "内射", "中出", "无码", "里番",
+    "强奸", "轮奸", "捆绑", "调教", "触手", "乱伦",
+    "脱衣", "露出", "不穿", "没穿", "全裸", "半裸",
+    "淫荡", "淫乱", "肉棒", "肉穴", "骑乘", "后入",
+    "颜射", "口爆", "吞精", "足交", "乳交", "肛交",
+    "绳缚", "奴隶", "凌辱", "痴汉", "猥亵",
+    "情趣用品", "按摩棒", "跳蛋", "飞机杯",
 ]
 
 # 预编译英文单词的正则（词边界匹配）
