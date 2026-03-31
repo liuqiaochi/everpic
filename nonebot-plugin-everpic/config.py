@@ -32,6 +32,9 @@ DEFAULT_NEGATIVE = ""
 # 用户设置文件
 USER_SETTINGS_FILE = PLUGIN_DIR / "user_settings.json"
 
+# 请求日志文件
+REQUEST_LOG_FILE = PLUGIN_DIR / "request_log.json"
+
 # 数据文件路径
 DATA_FILE = PLUGIN_DIR / "everpic_lora_list.json"
 BLACKLIST_FILE = PLUGIN_DIR / "blacklist.json"
