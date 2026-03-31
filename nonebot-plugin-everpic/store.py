@@ -204,3 +204,32 @@ def reset_draw_settings(user_id: int):
     data = _load_user_settings()
     data.pop(str(user_id), None)
     _save_user_settings(data)
+
+
+# ---- 请求日志 ----
+from .config import REQUEST_LOG_FILE
+
+MAX_LOG_ENTRIES = 500
+
+
+def _load_request_log() -> list[dict]:
+    return _load_json(REQUEST_LOG_FILE, [])
+
+
+def _save_request_log(logs: list[dict]):
+    _save_json(REQUEST_LOG_FILE, logs)
+
+
+def append_request_log(entry: dict):
+    """追加一条请求日志，自动裁剪到 MAX_LOG_ENTRIES"""
+    logs = _load_request_log()
+    logs.append(entry)
+    if len(logs) > MAX_LOG_ENTRIES:
+        logs = logs[-MAX_LOG_ENTRIES:]
+    _save_request_log(logs)
+
+
+def get_recent_logs(count: int = 10) -> list[dict]:
+    """获取最近 count 条日志"""
+    logs = _load_request_log()
+    return logs[-count:]
