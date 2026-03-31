@@ -1,6 +1,8 @@
 import base64
+import json
+from datetime import datetime
 from nonebot import on_message, logger
-from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent, MessageSegment
+from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent, MessageSegment, Message
 from nonebot.rule import Rule
 
 from ..config import MAX_CONCURRENT_JOBS, DRAW_COST, IMAGE_SAVE_DIR
@@ -8,7 +10,7 @@ from ..data import find_character, find_variant, is_variant_matched
 from ..store import (
     is_blacklisted, is_super_admin, is_group_enabled,
     is_nsfw_filter_on, get_user_points, deduct_points,
-    get_draw_settings,
+    get_draw_settings, append_request_log,
 )
 from ..nsfw import check_nsfw
 from ..api import call_generate, poll_until_done
@@ -112,9 +114,15 @@ async def handle(event: GroupMessageEvent):
         variant_name=variant.get("name_cn", variant["name"]),
     )
 
+    request_body = None
     try:
         user_settings = get_draw_settings(event.user_id)
-        job_id = await call_generate(char, variant, actual_prompt, user_settings)
+        job_id = await call_generate(char, variant, actual_prompt, user_settings,
+                                     return_body=True)
+        # call_generate 现在返回 (job_id, body) 当 return_body=True
+        if isinstance(job_id, tuple):
+            job_id, request_body = job_id
+
         job_info.job_id = job_id
         job_info.status = "排队中"
 
@@ -129,14 +137,17 @@ async def handle(event: GroupMessageEvent):
         save_path.write_bytes(img_bytes)
         logger.info(f"[EverPic] 图片已保存: {save_path}")
 
-        # 发送图片
+        # 构建回复消息：引用原消息 + 图片 + 积分信息
         b64 = base64.b64encode(img_bytes).decode()
-        await matcher.send(MessageSegment.image(f"base64://{b64}"))
+        reply_msg = Message()
+        reply_msg += MessageSegment.reply(event.message_id)
 
-        # 扣积分
         if not is_sa:
             remaining = deduct_points(event.user_id, DRAW_COST)
-            await matcher.send(f"💰 消耗 {DRAW_COST} 积分，剩余: {remaining}")
+            reply_msg += MessageSegment.text(f"💰 消耗 {DRAW_COST} 积分，剩余: {remaining}\n")
+
+        reply_msg += MessageSegment.image(f"base64://{b64}")
+        await matcher.send(reply_msg)
 
     except RuntimeError as e:
         logger.error(f"[EverPic] 生成失败: {e}")
@@ -146,3 +157,17 @@ async def handle(event: GroupMessageEvent):
         await matcher.send(f"❌ 生成失败: {e}")
     finally:
         remove_job(job_info)
+
+        # 记录请求日志
+        try:
+            sender = event.sender
+            log_entry = {
+                "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "user_name": sender.nickname or sender.card or str(event.user_id),
+                "user_id": event.user_id,
+                "group_id": event.group_id,
+                "request_body": request_body,
+            }
+            append_request_log(log_entry)
+        except Exception:
+            pass
