@@ -2674,8 +2674,11 @@
           "name_cn": "泳装"
         }
       ],
-      "name_cn": "伊芙",
-      "aliases": []
+      "name_cn": "夏娃",
+      "aliases": [
+          "EVA",
+          "eva"
+      ]
     },
     {
       "index": 68,
