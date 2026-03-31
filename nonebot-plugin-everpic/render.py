@@ -125,6 +125,7 @@ def render_help_image() -> bytes:
         ("body", "  everpic关闭 → 关闭本群画图（超级管理员）"),
         ("body", "  everpic安全开启 → 开启NSFW过滤（超级管理员）"),
         ("body", "  everpic安全关闭 → 关闭NSFW过滤（超级管理员）"),
+        ("body", "  everpic日志 [数量] → 查看请求日志（超级管理员）"),
         ("blank", ""),
         ("heading", "【帮助】"),
         ("body", "  everpic帮助 → 显示本帮助信息"),
