@@ -98,11 +98,15 @@ async def handle(event: GroupMessageEvent):
             await matcher.finish(f"🔞 Prompt 包含违禁内容「{hit}」，已拦截")
 
     # 第一条消息
+    # info = (
+    #     f"🎨 开始创建画图\n"
+    #     f"角色: {char['name_cn']} ({char['name']})\n"
+    #     f"变体: {variant.get('name_cn', variant['name'])}\n"
+    #     f"Prompt: {actual_prompt if actual_prompt else '(默认)'}"
+    # )
     info = (
         f"🎨 开始创建画图\n"
-        f"角色: {char['name_cn']} ({char['name']})\n"
-        f"变体: {variant.get('name_cn', variant['name'])}\n"
-        f"Prompt: {actual_prompt if actual_prompt else '(默认)'}"
+        f"{char['name_cn']} ({char['name']}) : {variant.get('name_cn', variant['name'])}"
     )
     await matcher.send(info)
 

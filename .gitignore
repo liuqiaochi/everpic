@@ -23,3 +23,6 @@ test_*.png
 
 # macOS
 .DS_Store
+
+# Workbuddy
+.workbuddy/
