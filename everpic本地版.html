@@ -159,7 +159,7 @@ function renderHistory(){
     const sc=item.status==='done'?'status-done':item.status==='fail'?'status-fail':'status-pending';
     const st=item.status==='done'?'完成':item.status==='fail'?'失败':'生成中';
     const thumb=item.imageUrl?'<img class="history-thumb" src="'+item.imageUrl+'" alt="">':'<div class="history-thumb"></div>';
-    div.innerHTML=thumb+'<div class="history-info"><div class="name">'+item.charName+' - '+item.variantName+'</div><div class="time">'+item.time+'</div></div><span class="history-status '+sc+'">'+st+'</span>';
+    div.innerHTML=thumb+'<div class="history-info"><div class="name">'+item.charName+' - '+item.variantName+'</div><div class="time">'+item.time+'</div>'+(item.positive?'<div class="time" style="color:#999;margin-top:3px">'+item.positive+'</div>':'')+'</div><span class="history-status '+sc+'">'+st+'</span>';
     if(item.status==='done'&&item.imageUrl){div.onclick=(()=>{const u=item.imageUrl;return()=>showPreview(u)})();div.title='点击查看大图'}
     $('historyList').appendChild(div);
   }
@@ -191,7 +191,7 @@ async function generate(){
   const body={primary,positive,negative,primary_model:ms,primary_clip:cs,extra_model:ms,extra_clip:cs,three_model:ms,three_clip:cs,steps,cfgScale:cfg,size:'portrait',image_strength:1,count:1};
 
   const hid=Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-  addHistory({id:hid,charName:selectedChar.name_cn,variantName:selectedVariant.name_cn||selectedVariant.name,time:new Date().toLocaleString(),status:'pending',imageUrl:null});
+  addHistory({id:hid,charName:selectedChar.name_cn,variantName:selectedVariant.name_cn||selectedVariant.name,time:new Date().toLocaleString(),status:'pending',imageUrl:null,positive,negative,keyword:primary.keyword});
 
   activeJobs++;updateJobCount();if(activeJobs>=MAX_JOBS)$('generateBtn').disabled=true;
   try{
