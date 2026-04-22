@@ -1,6 +1,7 @@
 import base64
 import json
 from datetime import datetime
+import httpx
 from nonebot import on_message, logger
 from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent, MessageSegment, Message
 from nonebot.rule import Rule
@@ -106,7 +107,7 @@ async def handle(event: GroupMessageEvent):
     # )
     info = (
         f"🎨 开始创建画图\n"
-        f"{char['name_cn']} ({char['name']}) : {variant.get('name_cn', variant['name'])}"
+        f"{char['name_cn']} : {variant.get('name_cn', variant['name'])}"
     )
     await matcher.send(info)
 
@@ -156,6 +157,12 @@ async def handle(event: GroupMessageEvent):
     except RuntimeError as e:
         logger.error(f"[EverPic] 生成失败: {e}")
         await matcher.send(f"❌ 生成失败: {e}")
+    except httpx.ConnectError:
+        logger.error("[EverPic] 无法连接到 EverPic 服务器")
+        await matcher.send("❌ 无法连接到 EverPic 服务器，请检查网络或稍后重试")
+    except httpx.TimeoutException:
+        logger.error("[EverPic] 连接 EverPic 服务器超时")
+        await matcher.send("❌ 连接服务器超时，请稍后重试")
     except Exception as e:
         logger.exception(f"[EverPic] 未知错误: {e}")
         await matcher.send(f"❌ 生成失败: {e}")
