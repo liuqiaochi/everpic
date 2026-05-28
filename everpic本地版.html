@@ -74,6 +74,16 @@ textarea{resize:vertical;min-height:70px;font-family:inherit}
     <label for="promptInput">正向 Prompt（可选）</label>
     <textarea id="promptInput" placeholder="输入你想要的画面描述..."></textarea>
   </div>
+  <div class="field">
+    <label for="sizeSelect">生成尺寸</label>
+    <select id="sizeSelect">
+      <option value="portrait" selected>竖版 3:4</option>
+      <option value="wportrait">竖版 9:16</option>
+      <option value="landscape">横版 4:3</option>
+      <option value="wlandscape">横版 16:9</option>
+      <option value="square">正方形 1:1</option>
+    </select>
+  </div>
   <div class="section-title">⚙️ 高级设置</div>
   <div class="row">
     <div class="field"><label>Model Strength</label><input type="number" id="modelStr" value="0.9" min="0" max="1" step="0.01"></div>
@@ -188,7 +198,7 @@ async function generate(){
   const up=$('promptInput').value.trim();
   const positive=primary.keyword+', '+up+(up?', ':'')+'masterpiece, best quality, amazing quality';
   let negative='bad quality,worst quality,worst detail,sketch,censor,';if(userNeg)negative+=userNeg;
-  const body={primary,positive,negative,primary_model:ms,primary_clip:cs,extra_model:ms,extra_clip:cs,three_model:ms,three_clip:cs,steps,cfgScale:cfg,size:'portrait',image_strength:1,count:1};
+  const body={primary,positive,negative,primary_model:ms,primary_clip:cs,extra_model:ms,extra_clip:cs,three_model:ms,three_clip:cs,steps,cfgScale:cfg,size:$('sizeSelect').value,image_strength:1,count:1};
 
   const hid=Date.now().toString(36)+Math.random().toString(36).slice(2,6);
   addHistory({id:hid,charName:selectedChar.name_cn,variantName:selectedVariant.name_cn||selectedVariant.name,time:new Date().toLocaleString(),status:'pending',imageUrl:null,positive,negative,keyword:primary.keyword});

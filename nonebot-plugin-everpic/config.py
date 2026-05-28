@@ -22,6 +22,16 @@ GIFT_MIN = 1
 GIFT_MAX = 50
 DAILY_RECEIVE_LIMIT = 100
 
+# 尺寸映射
+SIZE_MAP = {
+    "3:4": "portrait", "竖": "portrait", "竖版": "portrait", "portrait": "portrait",
+    "9:16": "wportrait", "窄竖": "wportrait", "wportrait": "wportrait",
+    "4:3": "landscape", "横": "landscape", "横版": "landscape", "landscape": "landscape",
+    "16:9": "wlandscape", "宽横": "wlandscape", "wlandscape": "wlandscape",
+    "1:1": "square", "方": "square", "正方": "square", "square": "square",
+}
+DEFAULT_SIZE = "portrait"
+
 # 画图默认参数
 DEFAULT_MODEL_STRENGTH = 0.9
 DEFAULT_CLIP_STRENGTH = 1.0

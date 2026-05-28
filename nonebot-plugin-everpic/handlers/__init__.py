@@ -8,3 +8,4 @@ from . import variant  # noqa: F401
 from . import queue  # noqa: F401
 from . import settings  # noqa: F401
 from . import log  # noqa: F401
+from . import size  # noqa: F401

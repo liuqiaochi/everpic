@@ -7,7 +7,8 @@ from .config import EVERPIC_API
 
 async def call_generate(char: dict, variant: dict, user_prompt: str,
                        draw_settings: dict | None = None,
-                       return_body: bool = False) -> str | tuple[str, dict]:
+                       return_body: bool = False,
+                       size: str = "portrait") -> str | tuple[str, dict]:
     """提交生成请求，返回 job_id。return_body=True 时返回 (job_id, body)。"""
     from .config import (
         DEFAULT_MODEL_STRENGTH, DEFAULT_CLIP_STRENGTH,
@@ -43,12 +44,12 @@ async def call_generate(char: dict, variant: dict, user_prompt: str,
         "primary_model": model_str, "primary_clip": clip_str,
         "extra_model": model_str, "extra_clip": clip_str,
         "three_model": model_str, "three_clip": clip_str,
-        "steps": steps, "cfgScale": cfg, "size": "portrait",
+        "steps": steps, "cfgScale": cfg, "size": size,
         "image_strength": 1, "count": 1,
     }
 
     logger.info("[EverPic] 正在提交生成请求...")
-    async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+    async with httpx.AsyncClient(timeout=httpx.Timeout(30.0), trust_env=False) as client:
         resp = await client.post(
             EVERPIC_API + "generate",
             json=body,
@@ -74,7 +75,7 @@ async def call_generate(char: dict, variant: dict, user_prompt: str,
 async def poll_until_done(job_id: str, on_progress) -> bytes:
     """轮询直到完成，IN_PROGRESS 时回调 on_progress，返回图片 bytes"""
     progress_sent = False
-    async with httpx.AsyncClient(timeout=httpx.Timeout(120.0)) as client:
+    async with httpx.AsyncClient(timeout=httpx.Timeout(120.0), trust_env=False) as client:
         for i in range(150):
             await asyncio.sleep(2)
             try:

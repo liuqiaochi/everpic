@@ -6,7 +6,7 @@ from nonebot import on_message, logger
 from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent, MessageSegment, Message
 from nonebot.rule import Rule
 
-from ..config import MAX_CONCURRENT_JOBS, DRAW_COST, IMAGE_SAVE_DIR
+from ..config import MAX_CONCURRENT_JOBS, DRAW_COST, IMAGE_SAVE_DIR, SIZE_MAP, DEFAULT_SIZE
 from ..data import find_character, find_variant, is_variant_matched
 from ..store import (
     is_blacklisted, is_super_admin, is_group_enabled,
@@ -31,12 +31,22 @@ matcher = on_message(rule=Rule(_rule), priority=10, block=True)
 def _parse_args(text: str):
     rest = text[len("画图"):].strip()
     if not rest:
-        return None, None, None
-    parts = rest.split(maxsplit=2)
+        return None, None, None, DEFAULT_SIZE
+    parts = rest.split(maxsplit=3)
+
+    # 第一个参数尝试匹配尺寸
+    size = DEFAULT_SIZE
+    if parts[0].lower() in SIZE_MAP:
+        size = SIZE_MAP[parts[0].lower()]
+        parts = parts[1:]  # 消费掉尺寸参数
+
+    if not parts:
+        return None, None, None, size
+
     char_kw = parts[0]
     variant_kw = parts[1] if len(parts) >= 2 else ""
     prompt = parts[2] if len(parts) >= 3 else ""
-    return char_kw, variant_kw, prompt
+    return char_kw, variant_kw, prompt, size
 
 
 @matcher.handle()
@@ -66,11 +76,12 @@ async def handle(event: GroupMessageEvent):
 
     # 解析参数
     text = event.get_plaintext().strip()
-    char_kw, variant_kw, prompt = _parse_args(text)
+    char_kw, variant_kw, prompt, size = _parse_args(text)
 
     if not char_kw:
         await matcher.finish(
-            "用法: 画图 角色名 [变体名] [Prompt关键词]\n"
+            "用法: 画图 [尺寸] 角色名 [变体名] [Prompt]\n"
+            "尺寸可选: 3:4(默认) 9:16 4:3 16:9 1:1\n"
             "角色名支持中文名/韩文名/别称\n"
             "变体可选，不填则使用默认\n"
             "Prompt关键词可选"
@@ -99,15 +110,10 @@ async def handle(event: GroupMessageEvent):
             await matcher.finish(f"🔞 Prompt 包含违禁内容「{hit}」，已拦截")
 
     # 第一条消息
-    # info = (
-    #     f"🎨 开始创建画图\n"
-    #     f"角色: {char['name_cn']} ({char['name']})\n"
-    #     f"变体: {variant.get('name_cn', variant['name'])}\n"
-    #     f"Prompt: {actual_prompt if actual_prompt else '(默认)'}"
-    # )
+    size_label = next((k for k, v in SIZE_MAP.items() if v == size and ':' in k), size)
     info = (
         f"🎨 开始创建画图\n"
-        f"{char['name_cn']} : {variant.get('name_cn', variant['name'])}"
+        f"{char['name_cn']} : {variant.get('name_cn', variant['name'])} [{size_label}]"
     )
     await matcher.send(info)
 
@@ -123,7 +129,7 @@ async def handle(event: GroupMessageEvent):
     try:
         user_settings = get_draw_settings(event.user_id)
         job_id = await call_generate(char, variant, actual_prompt, user_settings,
-                                     return_body=True)
+                                     return_body=True, size=size)
         # call_generate 现在返回 (job_id, body) 当 return_body=True
         if isinstance(job_id, tuple):
             job_id, request_body = job_id
