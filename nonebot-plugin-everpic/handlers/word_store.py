@@ -148,17 +148,18 @@ async def handle_query(event: GroupMessageEvent):
     who = "你" if is_self else f"用户 {user_id}"
     bot = get_bot(str(event.self_id))
 
-    # 构建合并转发节点
+    # 构建合并转发节点 — 标题嵌入 content，避免 QQ 客户端不显示 nickname
     nodes = []
     for idx, word in filtered:
-        nickname = f"#{idx}"
+        title = f"#{idx}"
         if word.get("note"):
-            nickname += f" {word['note']}"
+            title += f" {word['note']}"
+        content_text = f"{title}\n{word['prompt']}"
         nodes.append(
             MessageSegment.node_custom(
                 user_id=event.self_id,
-                nickname=nickname,
-                content=word["prompt"],
+                nickname=f"{who}的存词",
+                content=content_text,
             )
         )
 
