@@ -32,7 +32,7 @@ def _parse_args(text: str):
     rest = text[len("画图"):].strip()
     if not rest:
         return None, None, None, DEFAULT_SIZE
-    parts = rest.split(maxsplit=3)
+    parts = rest.split()
 
     # 第一个参数尝试匹配尺寸
     size = DEFAULT_SIZE
@@ -45,7 +45,7 @@ def _parse_args(text: str):
 
     char_kw = parts[0]
     variant_kw = parts[1] if len(parts) >= 2 else ""
-    prompt = parts[2] if len(parts) >= 3 else ""
+    prompt = " ".join(parts[2:]) if len(parts) >= 3 else ""
     return char_kw, variant_kw, prompt, size
 
 

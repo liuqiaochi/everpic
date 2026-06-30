@@ -57,11 +57,34 @@ textarea{resize:vertical;min-height:70px;font-family:inherit}
 /* 遮罩 */
 .panel-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:55;display:none}
 .panel-backdrop.show{display:block}
+
+/* 更新日期 */
+.update-date{position:fixed;top:12px;left:16px;font-size:12px;color:#666;background:#111827;padding:4px 10px;border-radius:6px;border:1px solid #333;z-index:10}
+
+/* 搜索框 */
+.search-wrap{position:relative;margin-bottom:2px}
+.search-results{position:absolute;top:100%;left:0;right:0;max-height:240px;overflow-y:auto;background:#16213e;border:1px solid #333;border-top:none;border-radius:0 0 8px 8px;z-index:20;display:none}
+.search-results.show{display:block}
+.search-item{padding:8px 12px;cursor:pointer;font-size:13px;transition:background .12s;display:flex;justify-content:space-between}
+.search-item:hover,.search-item.active{background:#7c3aed}
+.search-item .sr{color:#888;font-size:11px}
+.search-item .match{color:#a78bfa}
+.no-result{padding:10px 12px;font-size:12px;color:#666;text-align:center}
 </style>
 </head>
 <body>
+<!-- 更新日期 -->
+<div class="update-date">🔄 更新: 2026-06-30</div>
+
 <div class="container">
   <h1>EverPic Generator</h1>
+  <div class="field">
+    <label for="searchInput">🔍 搜索角色</label>
+    <div class="search-wrap">
+      <input type="text" id="searchInput" placeholder="输入角色名 / 别名搜索..." autocomplete="off">
+      <div class="search-results" id="searchResults"></div>
+    </div>
+  </div>
   <div class="field">
     <label for="charSelect">角色选择</label>
     <select id="charSelect"><option value="">-- 请选择角色 --</option></select>
@@ -185,6 +208,56 @@ $('charSelect').addEventListener('change',()=>{
   selectedVariant=selectedChar.variants[0];$('generateBtn').disabled=false;
 });
 $('variantSelect').addEventListener('change',()=>{if(selectedChar)selectedVariant=selectedChar.variants[$('variantSelect').value]});
+
+// --- Search ---
+function buildIndex(){
+  const idx=[];
+  loraData.forEach((c,i)=>{
+    idx.push({idx:i,name_cn:c.name_cn,name:c.name,text:c.name_cn+' / '+c.name,aliases:c.aliases||[],variants:c.variants.length});
+  });
+  return idx;
+}
+const searchIndex=buildIndex();
+let searchIdx=-1;
+
+function searchChars(q){
+  if(!q.trim()){$('searchResults').classList.remove('show');return}
+  const kw=q.trim().toLowerCase();
+  const results=searchIndex.filter(c=>{
+    if(c.name_cn.toLowerCase().includes(kw))return true;
+    if(c.name.toLowerCase().includes(kw))return true;
+    return c.aliases.some(a=>a.toLowerCase().includes(kw));
+  });
+  const div=$('searchResults');
+  if(!results.length){div.innerHTML='<div class="no-result">无匹配角色</div>';div.classList.add('show');return}
+  searchIdx=-1;
+  div.innerHTML=results.map((r,i)=>{
+    const hl=(t)=>{const pos=t.toLowerCase().indexOf(kw);if(pos<0)return t;return t.slice(0,pos)+'<span class="match">'+t.slice(pos,pos+kw.length)+'</span>'+t.slice(pos+kw.length)};
+    return '<div class="search-item" data-idx="'+r.idx+'" data-si="'+i+'">'+'<span>'+hl(r.name_cn)+' <span class="sr">'+hl(r.name)+'</span></span>'+'<span class="sr">'+r.variants+'种变体</span>'+'</div>';
+  }).join('');
+  div.classList.add('show');
+}
+
+$('searchInput').addEventListener('input',()=>searchChars($('searchInput').value));
+$('searchInput').addEventListener('focus',()=>{if($('searchInput').value.trim())searchChars($('searchInput').value)});
+$('searchInput').addEventListener('keydown',(e)=>{
+  const items=$('searchResults').querySelectorAll('.search-item');
+  if(e.key==='ArrowDown'){e.preventDefault();searchIdx=Math.min(searchIdx+1,items.length-1);items.forEach((el,i)=>el.classList.toggle('active',i===searchIdx))}
+  else if(e.key==='ArrowUp'){e.preventDefault();searchIdx=Math.max(searchIdx-1,0);items.forEach((el,i)=>el.classList.toggle('active',i===searchIdx))}
+  else if(e.key==='Enter'){e.preventDefault();if(searchIdx>=0&&items[searchIdx]){items[searchIdx].click()}}
+  else if(e.key==='Escape'){$('searchResults').classList.remove('show');$('searchInput').blur()}
+});
+$('searchResults').addEventListener('click',(e)=>{
+  const item=e.target.closest('.search-item');
+  if(!item)return;
+  const idx=parseInt(item.dataset.idx);
+  $('charSelect').value=idx;
+  $('charSelect').dispatchEvent(new Event('change'));
+  $('searchResults').classList.remove('show');
+  $('searchInput').value=loraData[idx].name_cn+' / '+loraData[idx].name;
+  searchIdx=-1;
+});
+document.addEventListener('click',(e)=>{if(!e.target.closest('.search-wrap'))$('searchResults').classList.remove('show')});
 $('generateBtn').addEventListener('click',generate);
 
 function updateJobCount(){$('jobCount').textContent=activeJobs>0?'当前任务: '+activeJobs+'/'+MAX_JOBS:''}
