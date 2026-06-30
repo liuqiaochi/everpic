@@ -25,52 +25,28 @@ async def handle_save(event: GroupMessageEvent):
     if is_blacklisted(event.user_id):
         await save_matcher.finish("❌ 你已被拉黑")
 
-    # 提取引用消息 — 多种方式兼容
+    # 提取引用消息
+    msg = event.get_message()
+    logger.info(f"[EverPic] 存词收到消息, 共{len(msg)}个segment")
     reply_id = None
 
-    # 方式1: 遍历 segments 找 reply
-    msg = event.get_message()
-    for seg in msg:
-        seg_type = seg.type
-        logger.info(f"[EverPic] 存词 segment: type={seg_type}, data={dict(seg.data)}")
-        if seg_type == "reply":
-            reply_id = seg.data.get("id") or seg.data.get("message_id")
-            if reply_id:
+    for i, seg in enumerate(msg):
+        logger.info(f"[EverPic] 存词 seg[{i}]: type={seg.type}, data={dict(seg.data)}")
+        if seg.type == "reply":
+            raw_id = seg.data.get("id") or seg.data.get("message_id", "")
+            logger.info(f"[EverPic] 存词 找到reply段, raw_id={raw_id}")
+            if raw_id:
                 try:
-                    reply_id = int(reply_id)
+                    reply_id = int(raw_id)
                 except (ValueError, TypeError):
-                    pass
+                    logger.warning(f"[EverPic] 存词 reply_id转换失败: {raw_id}")
                 break
 
-    # 方式2: 尝试从 event.json() 原始数据提取
     if not reply_id:
-        try:
-            raw = event.json()
-            import json
-            data = json.loads(raw) if isinstance(raw, str) else raw
-            # 查找 reply 字段
-            if "reply" in data:
-                r = data["reply"]
-                if isinstance(r, dict):
-                    reply_id = r.get("message_id") or r.get("id")
-                else:
-                    reply_id = r
-                if reply_id:
-                    reply_id = int(reply_id)
-            # 查找 message 数组中的 reply
-            if not reply_id and "message" in data:
-                for m in data["message"]:
-                    if m.get("type") == "reply":
-                        d = m.get("data", {})
-                        reply_id = d.get("id") or d.get("message_id")
-                        if reply_id:
-                            reply_id = int(reply_id)
-                            break
-        except Exception as e:
-            logger.warning(f"[EverPic] 从原始数据提取reply失败: {e}")
-
-    if not reply_id:
-        logger.warning(f"[EverPic] 存词缺少引用, segments: {[f'{s.type}:{dict(s.data)}' for s in msg]}")
+        logger.warning(
+            f"[EverPic] 存词 未找到reply_id, "
+            f"segments=[{'; '.join(f'{s.type}:{dict(s.data)}' for s in msg)}]"
+        )
         await save_matcher.finish(
             "❌ 请引用（回复）一条画图消息来存词\n用法: 回复画图消息 + everpic存词 备注"
         )
