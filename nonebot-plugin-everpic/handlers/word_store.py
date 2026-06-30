@@ -25,24 +25,24 @@ async def handle_save(event: GroupMessageEvent):
     if is_blacklisted(event.user_id):
         await save_matcher.finish("❌ 你已被拉黑")
 
-    # 提取引用消息
-    msg = event.get_message()
-    reply_seg = None
-    for seg in msg:
-        if seg.type == "reply":
-            reply_seg = seg
-            break
+    # 提取引用消息 — 优先用 event.reply
+    reply_id = None
+    if event.reply:
+        reply_id = event.reply.message_id
+    else:
+        # 兼容一些旧实现：遍历 segments 找 reply/quote
+        for seg in event.get_message():
+            if seg.type in ("reply", "quote"):
+                reply_id = int(seg.data.get("id", 0))
+                if reply_id:
+                    break
 
-    if not reply_seg:
+    if not reply_id:
         await save_matcher.finish(
-            "❌ 请引用（回复）一条画图消息来存词\n用法: 回复画图消息 + everpic存词 [备注]"
+            "❌ 请引用（回复）一条画图消息来存词\n用法: 回复画图消息 + everpic存词 备注"
         )
 
     # 获取被引用的消息内容
-    reply_id = reply_seg.data.get("id", "")
-    if not reply_id:
-        await save_matcher.finish("❌ 无法获取引用消息")
-
     try:
         bot = get_bot(str(event.self_id))
         reply_msg = await bot.get_msg(message_id=int(reply_id))
