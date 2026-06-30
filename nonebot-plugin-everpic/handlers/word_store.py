@@ -25,27 +25,20 @@ async def handle_save(event: GroupMessageEvent):
     if is_blacklisted(event.user_id):
         await save_matcher.finish("❌ 你已被拉黑")
 
-    # 提取引用消息
+    # 提取引用消息 — reply 信息在 event.reply 中，不在 segments 里
     msg = event.get_message()
-    logger.info(f"[EverPic] 存词收到消息, 共{len(msg)}个segment")
+    logger.info(f"[EverPic] 存词收到消息, 共{len(msg)}个segment, event.reply={event.reply}")
     reply_id = None
 
-    for i, seg in enumerate(msg):
-        logger.info(f"[EverPic] 存词 seg[{i}]: type={seg.type}, data={dict(seg.data)}")
-        if seg.type == "reply":
-            raw_id = seg.data.get("id") or seg.data.get("message_id", "")
-            logger.info(f"[EverPic] 存词 找到reply段, raw_id={raw_id}")
-            if raw_id:
-                try:
-                    reply_id = int(raw_id)
-                except (ValueError, TypeError):
-                    logger.warning(f"[EverPic] 存词 reply_id转换失败: {raw_id}")
-                break
+    # 主路径: OneBot v11 的 event.reply 属性
+    if event.reply:
+        reply_id = event.reply.message_id
+        logger.info(f"[EverPic] 存词 从event.reply获取reply_id={reply_id}")
 
     if not reply_id:
         logger.warning(
             f"[EverPic] 存词 未找到reply_id, "
-            f"segments=[{'; '.join(f'{s.type}:{dict(s.data)}' for s in msg)}]"
+            f"event.reply={event.reply}, segments=[{'; '.join(f'{s.type}:{dict(s.data)}' for s in msg)}]"
         )
         await save_matcher.finish(
             "❌ 请引用（回复）一条画图消息来存词\n用法: 回复画图消息 + everpic存词 备注"
