@@ -1,5 +1,5 @@
 """存词功能：存词 / 查词 / 删词"""
-from nonebot import on_message, get_bot
+from nonebot import on_message, get_bot, logger
 from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent, MessageSegment
 from nonebot.rule import Rule
 
@@ -25,19 +25,16 @@ async def handle_save(event: GroupMessageEvent):
     if is_blacklisted(event.user_id):
         await save_matcher.finish("❌ 你已被拉黑")
 
-    # 提取引用消息 — 优先用 event.reply
+    # 提取引用消息 — 遍历 segments 找 reply
     reply_id = None
-    if event.reply:
-        reply_id = event.reply.message_id
-    else:
-        # 兼容一些旧实现：遍历 segments 找 reply/quote
-        for seg in event.get_message():
-            if seg.type in ("reply", "quote"):
-                reply_id = int(seg.data.get("id", 0))
-                if reply_id:
-                    break
+    for seg in event.get_message():
+        if seg.type == "reply":
+            reply_id = int(seg.data.get("id") or seg.data.get("message_id", 0))
+            if reply_id:
+                break
 
     if not reply_id:
+        logger.warning(f"[EverPic] 存词缺少引用: {event.get_message()}")
         await save_matcher.finish(
             "❌ 请引用（回复）一条画图消息来存词\n用法: 回复画图消息 + everpic存词 备注"
         )
