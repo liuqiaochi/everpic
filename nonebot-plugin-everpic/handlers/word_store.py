@@ -168,7 +168,7 @@ async def handle_query(event: GroupMessageEvent):
             group_id=event.group_id,
             messages=nodes,
         )
-        await query_matcher.finish()
+        return  # 已通过转发发送，不再发送其他消息
     except Exception:
         # 如果转发接口不可用，降级为普通文本
         lines = [f"📋 {who}的存词（{len(filtered)}条）:"]
