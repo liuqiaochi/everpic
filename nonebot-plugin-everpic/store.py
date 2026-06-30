@@ -233,3 +233,62 @@ def get_recent_logs(count: int = 10) -> list[dict]:
     """获取最近 count 条日志"""
     logs = _load_request_log()
     return logs[-count:]
+
+
+# ---- 存词功能 ----
+from .config import WORD_STORE_FILE, MAX_WORDS
+
+
+def _load_word_store() -> dict:
+    """加载存词数据，结构: { "<user_id>": [{"prompt": str, "note": str, "time": str}, ...] }"""
+    return _load_json(WORD_STORE_FILE, {})
+
+
+def _save_word_store(data: dict):
+    _save_json(WORD_STORE_FILE, data)
+
+
+def save_word(user_id: int, prompt: str, note: str = "") -> tuple[bool, int, str]:
+    """存词。返回 (是否成功, 序号或错误码, 信息)"""
+    data = _load_word_store()
+    uid = str(user_id)
+    words = data.get(uid, [])
+
+    if len(words) >= MAX_WORDS:
+        return False, 0, f"存储已满（最多{MAX_WORDS}条），请先删除旧词"
+
+    entry = {
+        "prompt": prompt,
+        "note": note,
+        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    words.append(entry)
+    data[uid] = words
+    _save_word_store(data)
+    return True, len(words), f"已存入 #{len(words)}"
+
+
+def get_words(user_id: int) -> list[dict]:
+    """获取某用户的全部存词"""
+    data = _load_word_store()
+    return data.get(str(user_id), [])
+
+
+def delete_word(user_id: int, index: int) -> tuple[bool, str]:
+    """删词，index 从 1 开始。返回 (是否成功, 信息)"""
+    data = _load_word_store()
+    uid = str(user_id)
+    words = data.get(uid, [])
+
+    if not words:
+        return False, "你还没有存过提示词"
+    if index < 1 or index > len(words):
+        return False, f"序号超出范围（1~{len(words)}）"
+
+    removed = words.pop(index - 1)
+    if words:
+        data[uid] = words
+    else:
+        data.pop(uid, None)
+    _save_word_store(data)
+    return True, f"已删除 #{index}: {removed['prompt'][:40]}{'...' if len(removed['prompt']) > 40 else ''}"
