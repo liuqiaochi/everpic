@@ -46,7 +46,16 @@ async def handle_save(event: GroupMessageEvent):
     try:
         bot = get_bot(str(event.self_id))
         reply_msg = await bot.get_msg(message_id=int(reply_id))
-        reply_text = str(reply_msg.get("message", "")).strip()
+        raw_message = reply_msg.get("message", "")
+        # get_msg 的 message 可能是字符串（纯文本）或 segments 数组
+        if isinstance(raw_message, list):
+            reply_text = "".join(
+                seg.get("data", {}).get("text", "")
+                for seg in raw_message
+                if seg.get("type") == "text"
+            ).strip()
+        else:
+            reply_text = str(raw_message).strip()
     except Exception:
         await save_matcher.finish("❌ 无法获取引用消息内容，可能已过期")
 
