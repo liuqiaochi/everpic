@@ -219,30 +219,15 @@ async def handle_list_banned_word(bot: Bot, event: GroupMessageEvent):
     total = sum(counts.values())
 
     if not keyword:
-        # 先发统计摘要
+        # 只发统计概要
         summary = (
             f"📊 禁词库统计（共 {total} 条）\n"
             f"  英文单词: {counts['en_words']} 条\n"
             f"  英文短语: {counts['en_phrases']} 条\n"
-            f"  中文关键词: {counts['cn_keywords']} 条"
+            f"  中文关键词: {counts['cn_keywords']} 条\n\n"
+            f"💡 使用「everpic查禁词 关键词」搜索具体禁词"
         )
-        await list_banned_word_matcher.send(summary)
-
-        # 分类型发送完整词库，每条消息不超过 2000 字
-        import asyncio
-        for type_key, type_label in [
-            ("en_words", "英文单词"),
-            ("en_phrases", "英文短语"),
-            ("cn_keywords", "中文关键词"),
-        ]:
-            words = data[type_key]
-            if not words:
-                continue
-            full_text = f"📋【{type_label}】共 {len(words)} 条\n" + " | ".join(words)
-            for i in range(0, len(full_text), 2000):
-                await list_banned_word_matcher.send(full_text[i:i + 2000])
-                await asyncio.sleep(0.5)  # 防止发送过快被风控
-        return
+        await list_banned_word_matcher.finish(summary)
 
     # 带关键词 → 搜索
     result = search_banned_words(keyword)
