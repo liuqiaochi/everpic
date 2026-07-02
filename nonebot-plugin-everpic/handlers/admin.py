@@ -229,9 +229,8 @@ async def handle_list_banned_word(event: GroupMessageEvent):
         )
         await list_banned_word_matcher.send(summary)
 
-        # 合并转发全部 — 每批 10 个词
+        # 合并转发全部 — 每类一个节点，减少节点数避免 NapCat 超时
         nodes = []
-        node_idx = 0
         for type_key, type_label in [
             ("en_words", "英文单词"),
             ("en_phrases", "英文短语"),
@@ -240,16 +239,15 @@ async def handle_list_banned_word(event: GroupMessageEvent):
             words = data[type_key]
             if not words:
                 continue
-            for i in range(0, len(words), 10):
-                batch = words[i:i + 10]
-                node_idx += 1
-                content = f"【{type_label}】{i + 1}-{i + len(batch)} / 共 {len(words)} 条\n" + " | ".join(batch)
+            content = f"【{type_label}】共 {len(words)} 条\n\n" + " | ".join(words)
+            # 单个节点内容过长时分片（QQ 单条消息上限约 4500 字）
+            for i in range(0, len(content), 4000):
                 nodes.append({
                     "type": "node",
                     "data": {
-                        "name": f"禁词库 #{node_idx}",
+                        "name": f"禁词库 - {type_label}",
                         "uin": str(event.self_id),
-                        "content": Message(MessageSegment.text(content)),
+                        "content": Message(MessageSegment.text(content[i:i + 4000])),
                     },
                 })
         if not nodes:
