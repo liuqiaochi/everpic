@@ -1,10 +1,11 @@
-"""NSFW 违禁词过滤"""
+"""NSFW 违禁词过滤 — 词库持久化到 banned_words.json，支持动态增删查"""
+import json
 import re
 
-from .store import load_banned_words
+from .config import BANNED_WORDS_FILE
 
-# 英文单词级关键词（用词边界 \b 匹配，避免 ass 匹配到 class/glass 等）
-_EN_WORDS = [
+# 默认英文单词（首次运行写入 JSON 文件作为初始数据）
+_DEFAULT_EN_WORDS = [
     # --- 原有 ---
     "nsfw", "nude", "naked", "topless", "bottomless",
     "nipple", "nipples", "pussy", "vagina", "penis", "dick", "cock",
@@ -105,8 +106,8 @@ _EN_WORDS = [
     "pregnancy", "areola", "areolae",
 ]
 
-# 英文多词短语（用子串匹配即可，本身已足够具体）
-_EN_PHRASES = [
+# 默认英文短语（用子串匹配）
+_DEFAULT_EN_PHRASES = [
     # --- 原有 ---
     "spread legs", "spread_legs", "open legs", "open_legs",
     "panties down", "panties_down", "panties aside", "panties_aside",
@@ -131,8 +132,8 @@ _EN_PHRASES = [
     "nipple-to-nipple", "missionary position",
 ]
 
-# 中文关键词（子串匹配，中文没有词边界问题）
-_CN_KEYWORDS = [
+# 默认中文关键词
+_DEFAULT_CN_KEYWORDS = [
     # --- 原有 ---
     "裸体", "裸露", "色情", "性交", "做爱", "口交", "手交",
     "自慰", "高潮", "射精", "潮吹", "乳头", "阴道", "阴茎",
@@ -173,43 +174,215 @@ _CN_KEYWORDS = [
     "色图", "工口", "十八禁", "成人",
 ]
 
-# 预编译英文单词的正则（词边界匹配）
-_en_word_pattern = re.compile(
-    r'\b(' + '|'.join(re.escape(w) for w in _EN_WORDS) + r')\b',
-    re.IGNORECASE,
-)
 
+# ---- 内存缓存 ----
+_cache = {
+    "loaded": False,
+    "en_words": [],
+    "en_phrases": [],
+    "cn_keywords": [],
+    "pattern": None,
+}
+
+
+def _detect_type(word: str) -> str:
+    """自动判断词应归属的类型：
+    - 含中文字符 → cn_keywords（子串匹配）
+    - 含空格 → en_phrases（子串匹配）
+    - 否则 → en_words（词边界 \b 匹配）
+    """
+    if any('\u4e00' <= ch <= '\u9fff' for ch in word):
+        return "cn_keywords"
+    if ' ' in word:
+        return "en_phrases"
+    return "en_words"
+
+
+def _load_file() -> dict:
+    """从 JSON 文件加载词库；文件不存在则用默认值初始化并写入。"""
+    if BANNED_WORDS_FILE.exists():
+        try:
+            with open(BANNED_WORDS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            # 兼容旧格式（扁平 list）— 自动迁移到三分类
+            if isinstance(data, list):
+                new_data = {
+                    "en_words": list(_DEFAULT_EN_WORDS),
+                    "en_phrases": list(_DEFAULT_EN_PHRASES),
+                    "cn_keywords": list(_DEFAULT_CN_KEYWORDS),
+                }
+                for w in data:
+                    w = w.strip()
+                    if not w:
+                        continue
+                    t = _detect_type(w)
+                    if w not in new_data[t]:
+                        new_data[t].append(w)
+                _save_file(new_data)
+                return new_data
+            if isinstance(data, dict):
+                # 补全缺失的键
+                return {
+                    "en_words": data.get("en_words", list(_DEFAULT_EN_WORDS)),
+                    "en_phrases": data.get("en_phrases", list(_DEFAULT_EN_PHRASES)),
+                    "cn_keywords": data.get("cn_keywords", list(_DEFAULT_CN_KEYWORDS)),
+                }
+        except Exception:
+            pass
+    # 文件不存在或损坏，用默认值初始化
+    data = {
+        "en_words": list(_DEFAULT_EN_WORDS),
+        "en_phrases": list(_DEFAULT_EN_PHRASES),
+        "cn_keywords": list(_DEFAULT_CN_KEYWORDS),
+    }
+    _save_file(data)
+    return data
+
+
+def _save_file(data: dict):
+    with open(BANNED_WORDS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def _ensure_loaded():
+    """懒加载词库到缓存，并预编译英文单词正则。"""
+    if not _cache["loaded"]:
+        data = _load_file()
+        _cache["en_words"] = data["en_words"]
+        _cache["en_phrases"] = data["en_phrases"]
+        _cache["cn_keywords"] = data["cn_keywords"]
+        if _cache["en_words"]:
+            _cache["pattern"] = re.compile(
+                r'\b(' + '|'.join(re.escape(w) for w in _cache["en_words"]) + r')\b',
+                re.IGNORECASE,
+            )
+        else:
+            _cache["pattern"] = None
+        _cache["loaded"] = True
+
+
+def _invalidate():
+    """使缓存失效，下次访问会重新加载。"""
+    _cache["loaded"] = False
+
+
+# ---- 检查接口 ----
 
 def check_nsfw(text: str) -> str | None:
-    """检查文本是否包含 NSFW 关键词，返回匹配到的词或 None"""
+    """检查文本是否包含违禁词，返回匹配到的词或 None"""
+    _ensure_loaded()
+
     # 英文单词（词边界）
-    m = _en_word_pattern.search(text)
-    if m:
-        return m.group(0)
+    if _cache["pattern"]:
+        m = _cache["pattern"].search(text)
+        if m:
+            return m.group(0)
 
     lower = text.lower()
 
     # 英文短语（子串）
-    for phrase in _EN_PHRASES:
+    for phrase in _cache["en_phrases"]:
         if phrase in lower:
             return phrase
 
     # 中文（子串）
-    for kw in _CN_KEYWORDS:
+    for kw in _cache["cn_keywords"]:
         if kw in text:
             return kw
 
-    # 动态违禁词（超管通过指令添加，子串匹配，大小写不敏感）
-    for kw in load_banned_words():
-        if not kw:
-            continue
-        if len(kw) <= 2 and kw.isascii():
-            # 短英文词用词边界匹配，避免误伤
-            if re.search(r'\b' + re.escape(kw) + r'\b', text, re.IGNORECASE):
-                return kw
-        else:
-            # 中文或长词用子串匹配
-            if kw.lower() in lower or kw in text:
-                return kw
-
     return None
+
+
+# ---- 管理 API（供 admin 指令调用）----
+
+def add_banned_word(word: str) -> tuple[bool, str]:
+    """添加违禁词。返回 (是否成功, 信息)"""
+    word = word.strip()
+    if not word:
+        return False, "违禁词不能为空"
+
+    _ensure_loaded()
+    word_type = _detect_type(word)
+    target_list = _cache[word_type]
+
+    if word in target_list:
+        return False, f"「{word}」已在违禁词列表中（{_type_label(word_type)}）"
+
+    target_list.append(word)
+    _save_file({
+        "en_words": _cache["en_words"],
+        "en_phrases": _cache["en_phrases"],
+        "cn_keywords": _cache["cn_keywords"],
+    })
+    _invalidate()
+    return True, f"已添加「{word}」（{_type_label(word_type)}）"
+
+
+def remove_banned_word(word: str) -> tuple[bool, str]:
+    """删除违禁词。返回 (是否成功, 信息)"""
+    word = word.strip()
+    if not word:
+        return False, "违禁词不能为空"
+
+    _ensure_loaded()
+
+    # 先按自动检测的类型找，找不到再跨所有类型找
+    word_type = _detect_type(word)
+    if word in _cache[word_type]:
+        _cache[word_type].remove(word)
+        _save_file({
+            "en_words": _cache["en_words"],
+            "en_phrases": _cache["en_phrases"],
+            "cn_keywords": _cache["cn_keywords"],
+        })
+        _invalidate()
+        return True, f"已删除「{word}」（{_type_label(word_type)}）"
+
+    # 跨类型查找
+    for t in ("en_words", "en_phrases", "cn_keywords"):
+        if word in _cache[t]:
+            _cache[t].remove(word)
+            _save_file({
+                "en_words": _cache["en_words"],
+                "en_phrases": _cache["en_phrases"],
+                "cn_keywords": _cache["cn_keywords"],
+            })
+            _invalidate()
+            return True, f"已删除「{word}」（{_type_label(t)}）"
+
+    return False, f"「{word}」不在违禁词列表中"
+
+
+def list_banned_words() -> dict[str, list[str]]:
+    """返回所有违禁词，按类型分组"""
+    _ensure_loaded()
+    return {
+        "en_words": list(_cache["en_words"]),
+        "en_phrases": list(_cache["en_phrases"]),
+        "cn_keywords": list(_cache["cn_keywords"]),
+    }
+
+
+def search_banned_words(keyword: str) -> dict[str, list[str]]:
+    """按关键词搜索违禁词（子串匹配，大小写不敏感）"""
+    _ensure_loaded()
+    kw_lower = keyword.lower()
+    result = {"en_words": [], "en_phrases": [], "cn_keywords": []}
+    for w in _cache["en_words"]:
+        if kw_lower in w.lower():
+            result["en_words"].append(w)
+    for w in _cache["en_phrases"]:
+        if kw_lower in w.lower():
+            result["en_phrases"].append(w)
+    for w in _cache["cn_keywords"]:
+        if keyword in w or kw_lower in w.lower():
+            result["cn_keywords"].append(w)
+    return result
+
+
+def _type_label(t: str) -> str:
+    return {
+        "en_words": "英文单词",
+        "en_phrases": "英文短语",
+        "cn_keywords": "中文",
+    }.get(t, t)

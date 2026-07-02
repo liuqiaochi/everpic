@@ -1,11 +1,14 @@
 from nonebot import on_message
-from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent, Bot
+from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent, Bot, MessageSegment
 from nonebot.rule import Rule
 
 from ..store import (
     load_blacklist, save_blacklist,
     is_super_admin, set_group_enabled, set_nsfw_filter,
-    load_banned_words, add_banned_word, remove_banned_word,
+)
+from ..nsfw import (
+    add_banned_word, remove_banned_word,
+    list_banned_words, search_banned_words,
 )
 from ..utils import extract_at_target, is_group_admin
 
@@ -152,23 +155,15 @@ async def handle_add_banned_word(event: GroupMessageEvent):
     text = event.get_plaintext().strip()
     word = text[len("everpic加违禁词"):].strip()
     if not word:
-        await add_banned_word_matcher.finish("用法: everpic加违禁词 词\n多个词用空格分隔可一次添加多个")
+        await add_banned_word_matcher.finish(
+            "用法: everpic加违禁词 词\n"
+            "  含中文 → 中文词库（子串匹配）\n"
+            "  含空格 → 英文短语库（子串匹配）\n"
+            "  其他   → 英文单词库（词边界匹配）"
+        )
 
-    # 支持空格分隔添加多个
-    words = word.split()
-    success_count = 0
-    fail_msgs = []
-    for w in words:
-        ok, info = add_banned_word(w)
-        if ok:
-            success_count += 1
-        else:
-            fail_msgs.append(info)
-
-    msg = f"✅ 已添加 {success_count} 个违禁词"
-    if fail_msgs:
-        msg += "\n" + "\n".join(fail_msgs)
-    await add_banned_word_matcher.finish(msg)
+    ok, info = add_banned_word(word)
+    await add_banned_word_matcher.finish(("✅ " if ok else "❌ ") + info)
 
 
 # ---- everpic删违禁词 ----
@@ -189,29 +184,18 @@ async def handle_del_banned_word(event: GroupMessageEvent):
     text = event.get_plaintext().strip()
     word = text[len("everpic删违禁词"):].strip()
     if not word:
-        await del_banned_word_matcher.finish("用法: everpic删违禁词 词\n多个词用空格分隔可一次删除多个")
+        await del_banned_word_matcher.finish("用法: everpic删违禁词 词")
 
-    words = word.split()
-    success_count = 0
-    fail_msgs = []
-    for w in words:
-        ok, info = remove_banned_word(w)
-        if ok:
-            success_count += 1
-        else:
-            fail_msgs.append(info)
-
-    msg = f"✅ 已删除 {success_count} 个违禁词"
-    if fail_msgs:
-        msg += "\n" + "\n".join(fail_msgs)
-    await del_banned_word_matcher.finish(msg)
+    ok, info = remove_banned_word(word)
+    await del_banned_word_matcher.finish(("✅ " if ok else "❌ ") + info)
 
 
 # ---- everpic查违禁词 ----
 async def _list_banned_word_rule(event: MessageEvent) -> bool:
     if not isinstance(event, GroupMessageEvent):
         return False
-    return event.get_plaintext().strip() == "everpic查违禁词"
+    text = event.get_plaintext().strip()
+    return text == "everpic查违禁词" or text.startswith("everpic查违禁词 ")
 
 
 list_banned_word_matcher = on_message(rule=Rule(_list_banned_word_rule), priority=10, block=True)
@@ -222,13 +206,74 @@ async def handle_list_banned_word(event: GroupMessageEvent):
     if not is_super_admin(event.user_id):
         await list_banned_word_matcher.finish("❌ 仅超级管理员可以操作")
 
-    words = load_banned_words()
-    if not words:
-        await list_banned_word_matcher.finish("📭 当前没有自定义违禁词（仅使用内置违禁词库）")
+    text = event.get_plaintext().strip()
+    keyword = text[len("everpic查违禁词"):].strip()
 
-    # 每行显示多个，避免列表过长
-    lines = [f"📋 自定义违禁词（共 {len(words)} 条）:"]
-    for i in range(0, len(words), 5):
-        batch = words[i:i + 5]
-        lines.append("  " + " | ".join(batch))
+    # 不带关键词 → 显示统计 + 合并转发全部
+    data = list_banned_words()
+    counts = {k: len(v) for k, v in data.items()}
+    total = sum(counts.values())
+
+    if not keyword:
+        # 短摘要
+        summary = (
+            f"📊 违禁词库统计（共 {total} 条）:\n"
+            f"  英文单词: {counts['en_words']} 条\n"
+            f"  英文短语: {counts['en_phrases']} 条\n"
+            f"  中文关键词: {counts['cn_keywords']} 条\n\n"
+            f"详细列表将以合并转发形式发送..."
+        )
+        await list_banned_word_matcher.send(summary)
+
+        # 合并转发全部
+        nodes = []
+        for type_key, type_label in [
+            ("en_words", "英文单词"),
+            ("en_phrases", "英文短语"),
+            ("cn_keywords", "中文关键词"),
+        ]:
+            words = data[type_key]
+            if not words:
+                continue
+            # 每个类型按 50 个一组切分，避免单条消息过长
+            for i in range(0, len(words), 50):
+                batch = words[i:i + 50]
+                content = f"【{type_label}】({i + 1}-{i + len(batch)} / 共 {len(words)} 条)\n" + " | ".join(batch)
+                nodes.append(
+                    MessageSegment.node_custom(
+                        user_id=event.self_id,
+                        nickname=f"违禁词库 · {type_label}",
+                        content=content,
+                    )
+                )
+        if not nodes:
+            await list_banned_word_matcher.finish("📭 词库为空")
+        try:
+            bot = Bot
+            from nonebot import get_bot
+            bot = get_bot(str(event.self_id))
+            await bot.call_api(
+                "send_group_forward_msg",
+                group_id=event.group_id,
+                messages=nodes,
+            )
+            return
+        except Exception as e:
+            await list_banned_word_matcher.finish(f"❌ 合并转发失败: {e}")
+
+    # 带关键词 → 搜索
+    result = search_banned_words(keyword)
+    hit_total = sum(len(v) for v in result.values())
+    if hit_total == 0:
+        await list_banned_word_matcher.finish(f"🔍 未找到包含「{keyword}」的违禁词")
+
+    lines = [f"🔍 搜索「{keyword}」命中 {hit_total} 条:"]
+    for type_key, type_label in [
+        ("en_words", "英文单词"),
+        ("en_phrases", "英文短语"),
+        ("cn_keywords", "中文关键词"),
+    ]:
+        if result[type_key]:
+            lines.append(f"\n【{type_label}】({len(result[type_key])} 条)")
+            lines.append("  " + " | ".join(result[type_key]))
     await list_banned_word_matcher.finish("\n".join(lines))
