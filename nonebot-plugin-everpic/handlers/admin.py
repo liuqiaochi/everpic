@@ -1,6 +1,10 @@
+import logging
+
 from nonebot import on_message
 from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent, Bot, MessageSegment
 from nonebot.rule import Rule
+
+logger = logging.getLogger("nonebot-plugin-everpic")
 
 from ..store import (
     load_blacklist, save_blacklist,
@@ -225,7 +229,7 @@ async def handle_list_banned_word(event: GroupMessageEvent):
         )
         await list_banned_word_matcher.send(summary)
 
-        # 合并转发全部
+        # 合并转发全部 — 小批次避免单条过长
         nodes = []
         for type_key, type_label in [
             ("en_words", "英文单词"),
@@ -235,21 +239,20 @@ async def handle_list_banned_word(event: GroupMessageEvent):
             words = data[type_key]
             if not words:
                 continue
-            # 每个类型按 50 个一组切分，避免单条消息过长
-            for i in range(0, len(words), 50):
-                batch = words[i:i + 50]
+            # 每批 15 个词，避免 content 超长导致 1200
+            for i in range(0, len(words), 15):
+                batch = words[i:i + 15]
                 content = f"【{type_label}】({i + 1}-{i + len(batch)} / 共 {len(words)} 条)\n" + " | ".join(batch)
                 nodes.append(
                     MessageSegment.node_custom(
-                        user_id=event.self_id,
-                        nickname=f"禁词库 · {type_label}",
+                        user_id=int(event.self_id),
+                        nickname=f"禁词库",
                         content=content,
                     )
                 )
         if not nodes:
             await list_banned_word_matcher.finish("📭 词库为空")
         try:
-            bot = Bot
             from nonebot import get_bot
             bot = get_bot(str(event.self_id))
             await bot.call_api(
@@ -259,7 +262,24 @@ async def handle_list_banned_word(event: GroupMessageEvent):
             )
             return
         except Exception as e:
-            await list_banned_word_matcher.finish(f"❌ 合并转发失败: {e}")
+            # 降级：分类型纯文本发送
+            logger.warning(f"[EverPic] 查禁词合并转发失败: {e}，降级为纯文本")
+            for type_key, type_label in [
+                ("en_words", "英文单词"),
+                ("en_phrases", "英文短语"),
+                ("cn_keywords", "中文关键词"),
+            ]:
+                words = data[type_key]
+                if not words:
+                    continue
+                content = f"📋 【{type_label}】（共 {len(words)} 条）\n" + " | ".join(words)
+                # 超长分片发送
+                if len(content) > 4000:
+                    for j in range(0, len(content), 4000):
+                        await list_banned_word_matcher.send(content[j:j + 4000])
+                else:
+                    await list_banned_word_matcher.send(content)
+            return
 
     # 带关键词 → 搜索
     result = search_banned_words(keyword)
