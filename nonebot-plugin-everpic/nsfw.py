@@ -109,12 +109,12 @@ _DEFAULT_EN_WORDS = [
 # 默认英文短语（用子串匹配）
 _DEFAULT_EN_PHRASES = [
     # --- 原有 ---
-    "spread legs", "spread_legs", "open legs", "open_legs",
-    "panties down", "panties_down", "panties aside", "panties_aside",
-    "no panties", "no_panties", "no bra", "no_bra",
-    "no clothes", "no_clothes", "no underwear", "no_underwear",
-    "breast grab", "breast_grab", "breast sucking", "breast_sucking",
-    "nipple sucking", "nipple_sucking", "nipple pinch", "nipple_pinch",
+    "spread legs", "open legs",
+    "panties down", "panties aside",
+    "no panties", "no bra",
+    "no clothes", "no underwear",
+    "breast grab", "breast sucking",
+    "nipple sucking", "nipple pinch",    "nipple sucking", "nipple_sucking", "nipple pinch", "nipple_pinch",
     "thighhighs only", "underwear only", "nude filter",
     "pussy juice", "pussy_juice", "love juice", "love_juice",
     "sex toy", "sex_toy", "ball gag", "ball_gag",
@@ -268,24 +268,39 @@ def _invalidate():
 
 # ---- 检查接口 ----
 
+def _normalize(text: str) -> str:
+    """归一化文本：下划线、连字符、各类空白序列 → 单个空格，然后转小写。"""
+    return re.sub(r'[\s_\-]+', ' ', text).strip().lower()
+
+
 def check_nsfw(text: str) -> str | None:
-    """检查文本是否包含禁词，返回匹配到的词或 None"""
+    """检查文本是否包含禁词，返回匹配到的词或 None
+
+    归一化规则：
+    - 下划线、连字符、连续空白 → 替换为单个空格
+    - 大小写不敏感（英文）
+    - 例：'deep_throat' 与 'deep throat' 等同，'Deep Throat' 同样命中
+    """
     _ensure_loaded()
 
-    # 英文单词（词边界）
+    # 归一化输入：下划线/连字符/空白序列 → 单个空格，转小写
+    norm_text = re.sub(r'[\s_\-]+', ' ', text).strip()
+
+    # 英文单词（词边界，正则已有 re.IGNORECASE）
     if _cache["pattern"]:
-        m = _cache["pattern"].search(text)
+        m = _cache["pattern"].search(norm_text)
         if m:
             return m.group(0)
 
-    lower = text.lower()
+    lower_norm = norm_text.lower()
 
-    # 英文短语（子串）
+    # 英文短语（子串，大小写不敏感，对短语也做归一化以兼容下划线/连字符写法）
     for phrase in _cache["en_phrases"]:
-        if phrase in lower:
+        norm_phrase = _normalize(phrase)
+        if norm_phrase in lower_norm:
             return phrase
 
-    # 中文（子串）
+    # 中文（子串，保留原文不做归一化）
     for kw in _cache["cn_keywords"]:
         if kw in text:
             return kw
