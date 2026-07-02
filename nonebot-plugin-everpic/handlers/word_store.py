@@ -1,6 +1,6 @@
 """存词功能：存词 / 查词 / 删词"""
 from nonebot import on_message, get_bot, logger
-from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent, MessageSegment
+from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent
 from nonebot.rule import Rule
 
 from ..store import save_word, get_words, delete_word
@@ -155,13 +155,14 @@ async def handle_query(event: GroupMessageEvent):
         if word.get("note"):
             title += f" {word['note']}"
         content_text = f"{title}\n{word['prompt']}"
-        nodes.append(
-            MessageSegment.node_custom(
-                user_id=event.self_id,
-                nickname=f"{who}的存词",
-                content=content_text,
-            )
-        )
+        nodes.append({
+            "type": "node",
+            "data": {
+                "uin": str(event.self_id),
+                "name": f"{who}的存词",
+                "content": [{"type": "text", "data": {"text": content_text}}],
+            },
+        })
 
     try:
         await bot.call_api(
