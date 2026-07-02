@@ -1,6 +1,6 @@
 """存词功能：存词 / 查词 / 删词"""
 from nonebot import on_message, get_bot, logger
-from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent
+from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent, MessageSegment, Message
 from nonebot.rule import Rule
 
 from ..store import save_word, get_words, delete_word
@@ -158,18 +158,14 @@ async def handle_query(event: GroupMessageEvent):
         nodes.append({
             "type": "node",
             "data": {
-                "uin": str(event.self_id),
                 "name": f"{who}的存词",
-                "content": [{"type": "text", "data": {"text": content_text}}],
+                "uin": str(event.self_id),
+                "content": Message(MessageSegment.text(content_text)),
             },
         })
 
     try:
-        await bot.call_api(
-            "send_group_forward_msg",
-            group_id=event.group_id,
-            messages=nodes,
-        )
+        await bot.send_group_forward_msg(group_id=event.group_id, messages=nodes)
         return  # 已通过转发发送，不再发送其他消息
     except Exception:
         # 如果转发接口不可用，降级为普通文本

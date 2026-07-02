@@ -1,7 +1,7 @@
 import logging
 
 from nonebot import on_message, get_bot
-from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent, Bot
+from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent, Bot, MessageSegment, Message
 from nonebot.rule import Rule
 
 logger = logging.getLogger("nonebot-plugin-everpic")
@@ -247,9 +247,9 @@ async def handle_list_banned_word(event: GroupMessageEvent):
                 nodes.append({
                     "type": "node",
                     "data": {
-                        "uin": str(event.self_id),
                         "name": f"禁词库 #{node_idx}",
-                        "content": [{"type": "text", "data": {"text": content}}],
+                        "uin": str(event.self_id),
+                        "content": Message(MessageSegment.text(content)),
                     },
                 })
         if not nodes:
@@ -257,11 +257,7 @@ async def handle_list_banned_word(event: GroupMessageEvent):
 
         bot = get_bot(str(event.self_id))
         try:
-            await bot.call_api(
-                "send_group_forward_msg",
-                group_id=event.group_id,
-                messages=nodes,
-            )
+            await bot.send_group_forward_msg(group_id=event.group_id, messages=nodes)
             return
         except Exception as e:
             logger.warning(f"[EverPic] 查禁词合并转发失败: {e}，降级纯文本")
