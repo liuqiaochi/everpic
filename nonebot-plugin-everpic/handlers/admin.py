@@ -206,7 +206,7 @@ list_banned_word_matcher = on_message(rule=Rule(_list_banned_word_rule), priorit
 
 
 @list_banned_word_matcher.handle()
-async def handle_list_banned_word(event: GroupMessageEvent):
+async def handle_list_banned_word(bot: Bot, event: GroupMessageEvent):
     if not is_super_admin(event.user_id):
         await list_banned_word_matcher.finish("❌ 仅超级管理员可以操作")
 
@@ -219,7 +219,7 @@ async def handle_list_banned_word(event: GroupMessageEvent):
     total = sum(counts.values())
 
     if not keyword:
-        # 构建合并转发：第一个节点放统计，后续每 50 个词一个节点
+        # 构建合并转发：第一个节点放统计，每类一个节点
         nodes = []
 
         # 第一个节点：汇总统计
@@ -238,7 +238,7 @@ async def handle_list_banned_word(event: GroupMessageEvent):
             },
         })
 
-        # 后续节点：每类按 50 个词分批
+        # 每类一个节点，用换行分隔
         for type_key, type_label in [
             ("en_words", "英文单词"),
             ("en_phrases", "英文短语"),
@@ -247,19 +247,16 @@ async def handle_list_banned_word(event: GroupMessageEvent):
             words = data[type_key]
             if not words:
                 continue
-            for i in range(0, len(words), 20):
-                batch = words[i:i + 20]
-                content = f"【{type_label}】{i + 1}-{i + len(batch)}\n" + " | ".join(batch)
-                nodes.append({
-                    "type": "node",
-                    "data": {
-                        "name": "EverPic 禁词库",
-                        "uin": str(event.self_id),
-                        "content": Message(MessageSegment.text(content)),
-                    },
-                })
+            content = f"【{type_label}】共 {len(words)} 条\n" + "\n".join(words)
+            nodes.append({
+                "type": "node",
+                "data": {
+                    "name": "EverPic 禁词库",
+                    "uin": str(event.self_id),
+                    "content": Message(MessageSegment.text(content)),
+                },
+            })
 
-        bot = get_bot(str(event.self_id))
         try:
             await bot.send_group_forward_msg(group_id=event.group_id, messages=nodes)
             return
