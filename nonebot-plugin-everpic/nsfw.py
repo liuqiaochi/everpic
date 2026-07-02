@@ -1,4 +1,4 @@
-"""NSFW 违禁词过滤 — 词库持久化到 banned_words.json，支持动态增删查"""
+"""NSFW 禁词过滤 — 词库持久化到 banned_words.json，支持动态增删查"""
 import json
 import re
 
@@ -269,7 +269,7 @@ def _invalidate():
 # ---- 检查接口 ----
 
 def check_nsfw(text: str) -> str | None:
-    """检查文本是否包含违禁词，返回匹配到的词或 None"""
+    """检查文本是否包含禁词，返回匹配到的词或 None"""
     _ensure_loaded()
 
     # 英文单词（词边界）
@@ -296,17 +296,17 @@ def check_nsfw(text: str) -> str | None:
 # ---- 管理 API（供 admin 指令调用）----
 
 def add_banned_word(word: str) -> tuple[bool, str]:
-    """添加违禁词。返回 (是否成功, 信息)"""
+    """添加禁词。返回 (是否成功, 信息)"""
     word = word.strip()
     if not word:
-        return False, "违禁词不能为空"
+        return False, "禁词不能为空"
 
     _ensure_loaded()
     word_type = _detect_type(word)
     target_list = _cache[word_type]
 
     if word in target_list:
-        return False, f"「{word}」已在违禁词列表中（{_type_label(word_type)}）"
+        return False, f"「{word}」已在禁词列表中（{_type_label(word_type)}）"
 
     target_list.append(word)
     _save_file({
@@ -319,10 +319,10 @@ def add_banned_word(word: str) -> tuple[bool, str]:
 
 
 def remove_banned_word(word: str) -> tuple[bool, str]:
-    """删除违禁词。返回 (是否成功, 信息)"""
+    """删除禁词。返回 (是否成功, 信息)"""
     word = word.strip()
     if not word:
-        return False, "违禁词不能为空"
+        return False, "禁词不能为空"
 
     _ensure_loaded()
 
@@ -350,11 +350,11 @@ def remove_banned_word(word: str) -> tuple[bool, str]:
             _invalidate()
             return True, f"已删除「{word}」（{_type_label(t)}）"
 
-    return False, f"「{word}」不在违禁词列表中"
+    return False, f"「{word}」不在禁词列表中"
 
 
 def list_banned_words() -> dict[str, list[str]]:
-    """返回所有违禁词，按类型分组"""
+    """返回所有禁词，按类型分组"""
     _ensure_loaded()
     return {
         "en_words": list(_cache["en_words"]),
@@ -364,7 +364,7 @@ def list_banned_words() -> dict[str, list[str]]:
 
 
 def search_banned_words(keyword: str) -> dict[str, list[str]]:
-    """按关键词搜索违禁词（子串匹配，大小写不敏感）"""
+    """按关键词搜索禁词（子串匹配，大小写不敏感）"""
     _ensure_loaded()
     kw_lower = keyword.lower()
     result = {"en_words": [], "en_phrases": [], "cn_keywords": []}

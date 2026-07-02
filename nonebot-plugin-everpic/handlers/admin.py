@@ -126,7 +126,7 @@ async def handle_nsfw_on(event: GroupMessageEvent):
     if not is_super_admin(event.user_id):
         await nsfw_on_matcher.finish("❌ 仅超级管理员可以操作")
     set_nsfw_filter(event.group_id, True)
-    await nsfw_on_matcher.finish("🔞 本群 NSFW 过滤已开启（违禁词将被拦截）")
+    await nsfw_on_matcher.finish("🔞 本群 NSFW 过滤已开启（禁词将被拦截）")
 
 
 @nsfw_off_matcher.handle()
@@ -137,11 +137,11 @@ async def handle_nsfw_off(event: GroupMessageEvent):
     await nsfw_off_matcher.finish("🔓 本群 NSFW 过滤已关闭")
 
 
-# ---- everpic加违禁词 ----
+# ---- everpic加禁词 ----
 async def _add_banned_word_rule(event: MessageEvent) -> bool:
     if not isinstance(event, GroupMessageEvent):
         return False
-    return event.get_plaintext().strip().startswith("everpic加违禁词")
+    return event.get_plaintext().strip().startswith("everpic加禁词")
 
 
 add_banned_word_matcher = on_message(rule=Rule(_add_banned_word_rule), priority=10, block=True)
@@ -153,10 +153,10 @@ async def handle_add_banned_word(event: GroupMessageEvent):
         await add_banned_word_matcher.finish("❌ 仅超级管理员可以操作")
 
     text = event.get_plaintext().strip()
-    word = text[len("everpic加违禁词"):].strip()
+    word = text[len("everpic加禁词"):].strip()
     if not word:
         await add_banned_word_matcher.finish(
-            "用法: everpic加违禁词 词\n"
+            "用法: everpic加禁词 词\n"
             "  含中文 → 中文词库（子串匹配）\n"
             "  含空格 → 英文短语库（子串匹配）\n"
             "  其他   → 英文单词库（词边界匹配）"
@@ -166,11 +166,11 @@ async def handle_add_banned_word(event: GroupMessageEvent):
     await add_banned_word_matcher.finish(("✅ " if ok else "❌ ") + info)
 
 
-# ---- everpic删违禁词 ----
+# ---- everpic删禁词 ----
 async def _del_banned_word_rule(event: MessageEvent) -> bool:
     if not isinstance(event, GroupMessageEvent):
         return False
-    return event.get_plaintext().strip().startswith("everpic删违禁词")
+    return event.get_plaintext().strip().startswith("everpic删禁词")
 
 
 del_banned_word_matcher = on_message(rule=Rule(_del_banned_word_rule), priority=10, block=True)
@@ -182,20 +182,20 @@ async def handle_del_banned_word(event: GroupMessageEvent):
         await del_banned_word_matcher.finish("❌ 仅超级管理员可以操作")
 
     text = event.get_plaintext().strip()
-    word = text[len("everpic删违禁词"):].strip()
+    word = text[len("everpic删禁词"):].strip()
     if not word:
-        await del_banned_word_matcher.finish("用法: everpic删违禁词 词")
+        await del_banned_word_matcher.finish("用法: everpic删禁词 词")
 
     ok, info = remove_banned_word(word)
     await del_banned_word_matcher.finish(("✅ " if ok else "❌ ") + info)
 
 
-# ---- everpic查违禁词 ----
+# ---- everpic查禁词 ----
 async def _list_banned_word_rule(event: MessageEvent) -> bool:
     if not isinstance(event, GroupMessageEvent):
         return False
     text = event.get_plaintext().strip()
-    return text == "everpic查违禁词" or text.startswith("everpic查违禁词 ")
+    return text == "everpic查禁词" or text.startswith("everpic查禁词 ")
 
 
 list_banned_word_matcher = on_message(rule=Rule(_list_banned_word_rule), priority=10, block=True)
@@ -207,7 +207,7 @@ async def handle_list_banned_word(event: GroupMessageEvent):
         await list_banned_word_matcher.finish("❌ 仅超级管理员可以操作")
 
     text = event.get_plaintext().strip()
-    keyword = text[len("everpic查违禁词"):].strip()
+    keyword = text[len("everpic查禁词"):].strip()
 
     # 不带关键词 → 显示统计 + 合并转发全部
     data = list_banned_words()
@@ -217,7 +217,7 @@ async def handle_list_banned_word(event: GroupMessageEvent):
     if not keyword:
         # 短摘要
         summary = (
-            f"📊 违禁词库统计（共 {total} 条）:\n"
+            f"📊 禁词库统计（共 {total} 条）:\n"
             f"  英文单词: {counts['en_words']} 条\n"
             f"  英文短语: {counts['en_phrases']} 条\n"
             f"  中文关键词: {counts['cn_keywords']} 条\n\n"
@@ -242,7 +242,7 @@ async def handle_list_banned_word(event: GroupMessageEvent):
                 nodes.append(
                     MessageSegment.node_custom(
                         user_id=event.self_id,
-                        nickname=f"违禁词库 · {type_label}",
+                        nickname=f"禁词库 · {type_label}",
                         content=content,
                     )
                 )
@@ -265,7 +265,7 @@ async def handle_list_banned_word(event: GroupMessageEvent):
     result = search_banned_words(keyword)
     hit_total = sum(len(v) for v in result.values())
     if hit_total == 0:
-        await list_banned_word_matcher.finish(f"🔍 未找到包含「{keyword}」的违禁词")
+        await list_banned_word_matcher.finish(f"🔍 未找到包含「{keyword}」的禁词")
 
     lines = [f"🔍 搜索「{keyword}」命中 {hit_total} 条:"]
     for type_key, type_label in [
