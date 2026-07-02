@@ -6,6 +6,7 @@ from datetime import date, datetime
 from .config import (
     BLACKLIST_FILE, SUPER_ADMIN_FILE, GROUP_SETTINGS_FILE, POINTS_FILE,
     INITIAL_POINTS, SIGN_MIN, SIGN_MAX, DAILY_RECEIVE_LIMIT,
+    BANNED_WORDS_FILE,
 )
 
 
@@ -292,3 +293,40 @@ def delete_word(user_id: int, index: int) -> tuple[bool, str]:
         data.pop(uid, None)
     _save_word_store(data)
     return True, f"已删除 #{index}: {removed['prompt'][:40]}{'...' if len(removed['prompt']) > 40 else ''}"
+
+
+# ---- 动态违禁词 ----
+
+def load_banned_words() -> list[str]:
+    """加载超管添加的违禁词列表"""
+    return _load_json(BANNED_WORDS_FILE, [])
+
+
+def save_banned_words(words: list[str]):
+    _save_json(BANNED_WORDS_FILE, words)
+
+
+def add_banned_word(word: str) -> tuple[bool, str]:
+    """添加违禁词。返回 (是否成功, 信息)"""
+    word = word.strip()
+    if not word:
+        return False, "违禁词不能为空"
+    words = load_banned_words()
+    if word in words:
+        return False, f"「{word}」已在违禁词列表中"
+    words.append(word)
+    save_banned_words(words)
+    return True, f"已添加违禁词「{word}」（共 {len(words)} 条）"
+
+
+def remove_banned_word(word: str) -> tuple[bool, str]:
+    """删除违禁词。返回 (是否成功, 信息)"""
+    word = word.strip()
+    if not word:
+        return False, "违禁词不能为空"
+    words = load_banned_words()
+    if word not in words:
+        return False, f"「{word}」不在违禁词列表中"
+    words.remove(word)
+    save_banned_words(words)
+    return True, f"已删除违禁词「{word}」（剩 {len(words)} 条）"

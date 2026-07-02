@@ -1,6 +1,8 @@
 """NSFW 违禁词过滤"""
 import re
 
+from .store import load_banned_words
+
 # 英文单词级关键词（用词边界 \b 匹配，避免 ass 匹配到 class/glass 等）
 _EN_WORDS = [
     # --- 原有 ---
@@ -196,5 +198,18 @@ def check_nsfw(text: str) -> str | None:
     for kw in _CN_KEYWORDS:
         if kw in text:
             return kw
+
+    # 动态违禁词（超管通过指令添加，子串匹配，大小写不敏感）
+    for kw in load_banned_words():
+        if not kw:
+            continue
+        if len(kw) <= 2 and kw.isascii():
+            # 短英文词用词边界匹配，避免误伤
+            if re.search(r'\b' + re.escape(kw) + r'\b', text, re.IGNORECASE):
+                return kw
+        else:
+            # 中文或长词用子串匹配
+            if kw.lower() in lower or kw in text:
+                return kw
 
     return None

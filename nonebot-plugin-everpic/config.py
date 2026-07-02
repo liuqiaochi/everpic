@@ -49,6 +49,9 @@ REQUEST_LOG_FILE = PLUGIN_DIR / "request_log.json"
 MAX_WORDS = 20
 WORD_STORE_FILE = PLUGIN_DIR / "word_store.json"
 
+# 动态违禁词
+BANNED_WORDS_FILE = PLUGIN_DIR / "banned_words.json"
+
 # 数据文件路径
 DATA_FILE = PLUGIN_DIR / "everpic_lora_list.json"
 BLACKLIST_FILE = PLUGIN_DIR / "blacklist.json"

@@ -5,6 +5,7 @@ from nonebot.rule import Rule
 from ..store import (
     load_blacklist, save_blacklist,
     is_super_admin, set_group_enabled, set_nsfw_filter,
+    load_banned_words, add_banned_word, remove_banned_word,
 )
 from ..utils import extract_at_target, is_group_admin
 
@@ -131,3 +132,103 @@ async def handle_nsfw_off(event: GroupMessageEvent):
         await nsfw_off_matcher.finish("❌ 仅超级管理员可以操作")
     set_nsfw_filter(event.group_id, False)
     await nsfw_off_matcher.finish("🔓 本群 NSFW 过滤已关闭")
+
+
+# ---- everpic加违禁词 ----
+async def _add_banned_word_rule(event: MessageEvent) -> bool:
+    if not isinstance(event, GroupMessageEvent):
+        return False
+    return event.get_plaintext().strip().startswith("everpic加违禁词")
+
+
+add_banned_word_matcher = on_message(rule=Rule(_add_banned_word_rule), priority=10, block=True)
+
+
+@add_banned_word_matcher.handle()
+async def handle_add_banned_word(event: GroupMessageEvent):
+    if not is_super_admin(event.user_id):
+        await add_banned_word_matcher.finish("❌ 仅超级管理员可以操作")
+
+    text = event.get_plaintext().strip()
+    word = text[len("everpic加违禁词"):].strip()
+    if not word:
+        await add_banned_word_matcher.finish("用法: everpic加违禁词 词\n多个词用空格分隔可一次添加多个")
+
+    # 支持空格分隔添加多个
+    words = word.split()
+    success_count = 0
+    fail_msgs = []
+    for w in words:
+        ok, info = add_banned_word(w)
+        if ok:
+            success_count += 1
+        else:
+            fail_msgs.append(info)
+
+    msg = f"✅ 已添加 {success_count} 个违禁词"
+    if fail_msgs:
+        msg += "\n" + "\n".join(fail_msgs)
+    await add_banned_word_matcher.finish(msg)
+
+
+# ---- everpic删违禁词 ----
+async def _del_banned_word_rule(event: MessageEvent) -> bool:
+    if not isinstance(event, GroupMessageEvent):
+        return False
+    return event.get_plaintext().strip().startswith("everpic删违禁词")
+
+
+del_banned_word_matcher = on_message(rule=Rule(_del_banned_word_rule), priority=10, block=True)
+
+
+@del_banned_word_matcher.handle()
+async def handle_del_banned_word(event: GroupMessageEvent):
+    if not is_super_admin(event.user_id):
+        await del_banned_word_matcher.finish("❌ 仅超级管理员可以操作")
+
+    text = event.get_plaintext().strip()
+    word = text[len("everpic删违禁词"):].strip()
+    if not word:
+        await del_banned_word_matcher.finish("用法: everpic删违禁词 词\n多个词用空格分隔可一次删除多个")
+
+    words = word.split()
+    success_count = 0
+    fail_msgs = []
+    for w in words:
+        ok, info = remove_banned_word(w)
+        if ok:
+            success_count += 1
+        else:
+            fail_msgs.append(info)
+
+    msg = f"✅ 已删除 {success_count} 个违禁词"
+    if fail_msgs:
+        msg += "\n" + "\n".join(fail_msgs)
+    await del_banned_word_matcher.finish(msg)
+
+
+# ---- everpic查违禁词 ----
+async def _list_banned_word_rule(event: MessageEvent) -> bool:
+    if not isinstance(event, GroupMessageEvent):
+        return False
+    return event.get_plaintext().strip() == "everpic查违禁词"
+
+
+list_banned_word_matcher = on_message(rule=Rule(_list_banned_word_rule), priority=10, block=True)
+
+
+@list_banned_word_matcher.handle()
+async def handle_list_banned_word(event: GroupMessageEvent):
+    if not is_super_admin(event.user_id):
+        await list_banned_word_matcher.finish("❌ 仅超级管理员可以操作")
+
+    words = load_banned_words()
+    if not words:
+        await list_banned_word_matcher.finish("📭 当前没有自定义违禁词（仅使用内置违禁词库）")
+
+    # 每行显示多个，避免列表过长
+    lines = [f"📋 自定义违禁词（共 {len(words)} 条）:"]
+    for i in range(0, len(words), 5):
+        batch = words[i:i + 5]
+        lines.append("  " + " | ".join(batch))
+    await list_banned_word_matcher.finish("\n".join(lines))
