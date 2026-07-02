@@ -247,8 +247,8 @@ async def handle_list_banned_word(event: GroupMessageEvent):
             words = data[type_key]
             if not words:
                 continue
-            for i in range(0, len(words), 50):
-                batch = words[i:i + 50]
+            for i in range(0, len(words), 20):
+                batch = words[i:i + 20]
                 content = f"【{type_label}】{i + 1}-{i + len(batch)}\n" + " | ".join(batch)
                 nodes.append({
                     "type": "node",
