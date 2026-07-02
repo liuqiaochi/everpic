@@ -219,18 +219,26 @@ async def handle_list_banned_word(event: GroupMessageEvent):
     total = sum(counts.values())
 
     if not keyword:
-        # 短摘要
+        # 构建合并转发：第一个节点放统计，后续每 50 个词一个节点
+        nodes = []
+
+        # 第一个节点：汇总统计
         summary = (
-            f"📊 禁词库统计（共 {total} 条）:\n"
+            f"📊 禁词库统计（共 {total} 条）\n"
             f"  英文单词: {counts['en_words']} 条\n"
             f"  英文短语: {counts['en_phrases']} 条\n"
-            f"  中文关键词: {counts['cn_keywords']} 条\n\n"
-            f"详细列表将以合并转发形式发送..."
+            f"  中文关键词: {counts['cn_keywords']} 条"
         )
-        await list_banned_word_matcher.send(summary)
+        nodes.append({
+            "type": "node",
+            "data": {
+                "name": "EverPic 禁词库",
+                "uin": str(event.self_id),
+                "content": Message(MessageSegment.text(summary)),
+            },
+        })
 
-        # 合并转发全部 — 每类一个节点，减少节点数避免 NapCat 超时
-        nodes = []
+        # 后续节点：每类按 50 个词分批
         for type_key, type_label in [
             ("en_words", "英文单词"),
             ("en_phrases", "英文短语"),
@@ -239,19 +247,17 @@ async def handle_list_banned_word(event: GroupMessageEvent):
             words = data[type_key]
             if not words:
                 continue
-            content = f"【{type_label}】共 {len(words)} 条\n\n" + " | ".join(words)
-            # 单个节点内容过长时分片（QQ 单条消息上限约 4500 字）
-            for i in range(0, len(content), 4000):
+            for i in range(0, len(words), 50):
+                batch = words[i:i + 50]
+                content = f"【{type_label}】{i + 1}-{i + len(batch)}\n" + " | ".join(batch)
                 nodes.append({
                     "type": "node",
                     "data": {
-                        "name": f"禁词库 - {type_label}",
+                        "name": "EverPic 禁词库",
                         "uin": str(event.self_id),
-                        "content": Message(MessageSegment.text(content[i:i + 4000])),
+                        "content": Message(MessageSegment.text(content)),
                     },
                 })
-        if not nodes:
-            await list_banned_word_matcher.finish("📭 词库为空")
 
         bot = get_bot(str(event.self_id))
         try:
@@ -259,20 +265,9 @@ async def handle_list_banned_word(event: GroupMessageEvent):
             return
         except Exception as e:
             logger.warning(f"[EverPic] 查禁词合并转发失败: {e}，降级纯文本")
-            # 降级：分类型纯文本发送
-            for type_key, type_label in [
-                ("en_words", "英文单词"),
-                ("en_phrases", "英文短语"),
-                ("cn_keywords", "中文关键词"),
-            ]:
-                words = data[type_key]
-                if not words:
-                    continue
-                content = f"📋 【{type_label}】（共 {len(words)} 条）\n" + " | ".join(words)
-                # 超长分片
-                for j in range(0, len(content), 4000):
-                    await list_banned_word_matcher.send(content[j:j + 4000])
-            return
+            # 降级：直接发统计
+            await list_banned_word_matcher.finish(summary + "\n\n⚠️ 合并转发发送失败，请稍后重试")
+        return
 
     # 带关键词 → 搜索
     result = search_banned_words(keyword)
