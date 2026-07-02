@@ -269,22 +269,22 @@ def _invalidate():
 # ---- 检查接口 ----
 
 def _normalize(text: str) -> str:
-    """归一化文本：下划线、连字符、各类空白序列 → 单个空格，然后转小写。"""
-    return re.sub(r'[\s_\-]+', ' ', text).strip().lower()
+    """归一化文本：下划线、连字符、&符号、各类空白序列 → 单个空格，然后转小写。"""
+    return re.sub(r'[\s_\-&]+', ' ', text).strip().lower()
 
 
 def check_nsfw(text: str) -> str | None:
     """检查文本是否包含禁词，返回匹配到的词或 None
 
     归一化规则：
-    - 下划线、连字符、连续空白 → 替换为单个空格
+    - 下划线、连字符、&符号、连续空白 → 替换为单个空格
     - 大小写不敏感（英文）
-    - 例：'deep_throat' 与 'deep throat' 等同，'Deep Throat' 同样命中
+    - 例：'deep_throat' / 'deep&throat' / 'Deep Throat' 均等同命中
     """
     _ensure_loaded()
 
-    # 归一化输入：下划线/连字符/空白序列 → 单个空格，转小写
-    norm_text = re.sub(r'[\s_\-]+', ' ', text).strip()
+    # 归一化输入：下划线/连字符/&/空白序列 → 单个空格，转小写
+    norm_text = re.sub(r'[\s_\-&]+', ' ', text).strip()
 
     # 英文单词（词边界，正则已有 re.IGNORECASE）
     if _cache["pattern"]:
