@@ -1,7 +1,7 @@
 import logging
 
-from nonebot import on_message, get_bot
-from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent, Bot, MessageSegment, Message
+from nonebot import on_message
+from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent, Bot
 from nonebot.rule import Rule
 
 logger = logging.getLogger("nonebot-plugin-everpic")
@@ -219,26 +219,17 @@ async def handle_list_banned_word(bot: Bot, event: GroupMessageEvent):
     total = sum(counts.values())
 
     if not keyword:
-        # 构建合并转发：第一个节点放统计，每类一个节点
-        nodes = []
-
-        # 第一个节点：汇总统计
+        # 先发统计摘要
         summary = (
             f"📊 禁词库统计（共 {total} 条）\n"
             f"  英文单词: {counts['en_words']} 条\n"
             f"  英文短语: {counts['en_phrases']} 条\n"
             f"  中文关键词: {counts['cn_keywords']} 条"
         )
-        nodes.append({
-            "type": "node",
-            "data": {
-                "name": "EverPic 禁词库",
-                "uin": str(event.self_id),
-                "content": Message(MessageSegment.text(summary)),
-            },
-        })
+        await list_banned_word_matcher.send(summary)
 
-        # 每类一个节点，用换行分隔
+        # 分类型发送完整词库，每条消息不超过 2000 字
+        import asyncio
         for type_key, type_label in [
             ("en_words", "英文单词"),
             ("en_phrases", "英文短语"),
@@ -247,23 +238,10 @@ async def handle_list_banned_word(bot: Bot, event: GroupMessageEvent):
             words = data[type_key]
             if not words:
                 continue
-            content = f"【{type_label}】共 {len(words)} 条\n" + "\n".join(words)
-            nodes.append({
-                "type": "node",
-                "data": {
-                    "name": "EverPic 禁词库",
-                    "uin": str(event.self_id),
-                    "content": Message(MessageSegment.text(content)),
-                },
-            })
-
-        try:
-            await bot.send_group_forward_msg(group_id=event.group_id, messages=nodes)
-            return
-        except Exception as e:
-            logger.warning(f"[EverPic] 查禁词合并转发失败: {e}，降级纯文本")
-            # 降级：直接发统计
-            await list_banned_word_matcher.finish(summary + "\n\n⚠️ 合并转发发送失败，请稍后重试")
+            full_text = f"📋【{type_label}】共 {len(words)} 条\n" + " | ".join(words)
+            for i in range(0, len(full_text), 2000):
+                await list_banned_word_matcher.send(full_text[i:i + 2000])
+                await asyncio.sleep(0.5)  # 防止发送过快被风控
         return
 
     # 带关键词 → 搜索
