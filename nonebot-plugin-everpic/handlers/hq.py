@@ -1,5 +1,6 @@
 """HQ 高清升级：引用本机器人生成的图片 + 文本「HQ」"""
 import base64
+import re
 import httpx
 from nonebot import on_message, logger, Bot
 from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent, MessageSegment, Message
@@ -38,6 +39,29 @@ def _extract_bot_msg_id(receipt):
     return None
 
 
+async def _extract_job_id(bot, reply_id):
+    """从被引用消息中提取 server job_id。
+
+    优先：引用消息文本里的 `EverPicJob:{id}`（最稳健，不依赖映射表）
+    回退：message_id -> job_id 映射（兼容未带文本的旧版本生成的图）
+    """
+    # 1) 优先从引用消息文本里找 EverPicJob:{job_id}
+    try:
+        quoted = await bot.get_msg(message_id=reply_id)
+        content = quoted.get("message") if isinstance(quoted, dict) else quoted
+        if hasattr(content, "extract_plain_text"):
+            text = content.extract_plain_text()
+        else:
+            text = str(content)
+        m = re.search(r'EverPicJob[:：]?\s*([0-9a-fA-F]{32})', text)
+        if m:
+            return m.group(1)
+    except Exception as e:
+        logger.warning(f"[EverPic] HQ 提取引用文本失败，回退映射表: {e}")
+    # 2) 回退：映射表
+    return get_job_by_msg_id(str(reply_id))
+
+
 @hq_matcher.handle()
 async def handle_hq(bot: Bot, event: GroupMessageEvent):
     # 群开关
@@ -63,9 +87,9 @@ async def handle_hq(bot: Bot, event: GroupMessageEvent):
             f"当前已有 {active_count()} 个任务进行中（上限{MAX_CONCURRENT_JOBS}），请稍后再试！"
         )
 
-    # 从被引用消息反查 server job_id
+    # 从被引用消息中提取 server job_id（文本优先，映射表回退）
     reply_id = event.reply.message_id
-    job_id = get_job_by_msg_id(str(reply_id))
+    job_id = await _extract_job_id(bot, reply_id)
     if not job_id:
         await hq_matcher.finish(
             "❌ 请引用一张由本机器人「画图」生成的图片（即本机器人发出的图片），再发送 HQ"
@@ -99,6 +123,8 @@ async def handle_hq(bot: Bot, event: GroupMessageEvent):
             remaining = deduct_points(event.user_id, DRAW_COST)
             reply_msg += MessageSegment.text(f"💰 HQ 消耗 {DRAW_COST} 积分，剩余: {remaining}\n")
         reply_msg += MessageSegment.image(f"base64://{b64}")
+        # 把新图的 server job_id 附上，支持二次 HQ
+        reply_msg += MessageSegment.text(f"\nEverPicJob:{new_job_id}")
         receipt = await bot.send(event, reply_msg)
         bot_msg_id = _extract_bot_msg_id(receipt)
         if bot_msg_id is not None:

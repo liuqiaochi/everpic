@@ -158,7 +158,8 @@ async def handle(bot: Bot, event: GroupMessageEvent):
             reply_msg += MessageSegment.text(f"💰 消耗 {DRAW_COST} 积分，剩余: {remaining}\n")
 
         reply_msg += MessageSegment.image(f"base64://{b64}")
-        # 发送并获取 bot 发出的 message_id，记录到 job 映射供 HQ 引用反查
+        # 把 server job_id 一并附在文本里，HQ 时直接从引用消息文本提取，无需依赖映射表
+        reply_msg += MessageSegment.text(f"\nEverPicJob:{job_id}")
         receipt = await bot.send(event, reply_msg)
         bot_msg_id = None
         if receipt is not None:
