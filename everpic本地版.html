@@ -538,10 +538,8 @@ async function upscaleImage(id){
   try{
     const serverId=item.serverJobId||id;                // 优先用服务器 jobId
     if(!serverId){throw new Error('缺少服务器任务ID，无法 HQ')}
-    // 与官方一致：带 Authorization 头，值取当前 URL 最后一段
-    const auth=window.location.href.split('/').pop()||'';
-    const headers={'Content-Type':'application/json'};
-    if(auth)headers.Authorization=auth;
+    // upscale 接口要求 Authorization 头，值为被升级图的 job_id 本身（已实测：缺失返回 500）
+    const headers={'Content-Type':'application/json','Authorization':serverId};
     let res=null,lastErr=null;
     for(let attempt=0;attempt<3;attempt++){             // 网络错误重试 3 次
       try{

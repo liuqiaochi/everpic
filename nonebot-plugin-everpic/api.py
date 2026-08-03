@@ -73,11 +73,15 @@ async def call_generate(char: dict, variant: dict, user_prompt: str,
 
 
 async def call_upscale(job_id: str) -> str:
-    """对已生成的图片做 HQ 升级（upscale），返回新的 job_id 用于后续轮询"""
+    """对已生成的图片做 HQ 升级（upscale），返回新的 job_id 用于后续轮询。
+
+    注意：upscale 接口要求 Authorization 头，值为被升级图的 job_id 本身
+    （官方网页在查看该图时 URL 最后一段即 job_id）。缺失会返回 HTTP 500。
+    """
     async with httpx.AsyncClient(timeout=httpx.Timeout(30.0), trust_env=False) as client:
         resp = await client.post(
             EVERPIC_API + f"upscale/{job_id}",
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", "Authorization": job_id},
         )
         logger.info(f"[EverPic] upscale 响应: {resp.status_code} {resp.text[:200]}")
 
@@ -86,7 +90,7 @@ async def call_upscale(job_id: str) -> str:
         if resp.status_code == 429:
             raise RuntimeError("HQ 队列已满，请稍后再试")
         if not (200 <= resp.status_code < 300):
-            raise RuntimeError(f"服务器错误: HTTP {resp.status_code}")
+            raise RuntimeError(f"服务器错误: HTTP {resp.status_code} {resp.text[:120]}")
 
         body = resp.json()
         return str(body.get("id") or body.get("job_id") or body)
