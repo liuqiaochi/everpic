@@ -10,3 +10,4 @@ from . import settings  # noqa: F401
 from . import log  # noqa: F401
 from . import size  # noqa: F401
 from . import word_store  # noqa: F401
+from . import hq  # noqa: F401

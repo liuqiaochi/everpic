@@ -10,6 +10,9 @@ EVERPIC_API = "https://everpic.mephistopheles.moe/api/"
 IMAGE_SAVE_DIR = PLUGIN_DIR / "images"
 IMAGE_SAVE_DIR.mkdir(exist_ok=True)
 
+# 生成图片消息 ID → server job_id 映射（供 HQ 引用反查）
+IMAGE_JOB_FILE = PLUGIN_DIR / "image_jobs.json"
+
 # 并发控制
 MAX_CONCURRENT_JOBS = 3
 

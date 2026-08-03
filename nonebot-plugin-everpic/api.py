@@ -66,10 +66,30 @@ async def call_generate(char: dict, variant: dict, user_prompt: str,
 
         job_id = resp.json().get("id", str(resp.json()))
 
-    logger.info(f"[EverPic] 获得 job_id: {job_id}")
-    if return_body:
-        return job_id, body
-    return job_id
+        logger.info(f"[EverPic] 获得 job_id: {job_id}")
+        if return_body:
+            return job_id, body
+        return job_id
+
+
+async def call_upscale(job_id: str) -> str:
+    """对已生成的图片做 HQ 升级（upscale），返回新的 job_id 用于后续轮询"""
+    async with httpx.AsyncClient(timeout=httpx.Timeout(30.0), trust_env=False) as client:
+        resp = await client.post(
+            EVERPIC_API + f"upscale/{job_id}",
+            headers={"Content-Type": "application/json"},
+        )
+        logger.info(f"[EverPic] upscale 响应: {resp.status_code} {resp.text[:200]}")
+
+        if resp.status_code == 404:
+            raise RuntimeError("原图不存在或已过期（HQ 需在原图生成后 7 天内操作）")
+        if resp.status_code == 429:
+            raise RuntimeError("HQ 队列已满，请稍后再试")
+        if not (200 <= resp.status_code < 300):
+            raise RuntimeError(f"服务器错误: HTTP {resp.status_code}")
+
+        body = resp.json()
+        return str(body.get("id") or body.get("job_id") or body)
 
 
 async def poll_until_done(job_id: str, on_progress) -> bytes:

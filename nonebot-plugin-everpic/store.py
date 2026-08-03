@@ -236,7 +236,7 @@ def get_recent_logs(count: int = 10) -> list[dict]:
 
 
 # ---- 存词功能 ----
-from .config import WORD_STORE_FILE, MAX_WORDS
+from .config import WORD_STORE_FILE, MAX_WORDS, IMAGE_JOB_FILE
 
 
 def _load_word_store() -> dict:
@@ -292,3 +292,18 @@ def delete_word(user_id: int, index: int) -> tuple[bool, str]:
         data.pop(uid, None)
     _save_word_store(data)
     return True, f"已删除 #{index}: {removed['prompt'][:40]}{'...' if len(removed['prompt']) > 40 else ''}"
+
+
+# ---- 生成图片消息关联（HQ 功能用）----
+# 结构: { "<bot发出的message_id>": "<server job_id>" }
+def save_image_job(message_id: str, job_id: str):
+    """记录 bot 发出的图片消息 ID 对应的 server job_id，供 HQ 引用反查"""
+    data = _load_json(IMAGE_JOB_FILE, {})
+    data[str(message_id)] = job_id
+    _save_json(IMAGE_JOB_FILE, data)
+
+
+def get_job_by_msg_id(message_id: str) -> str | None:
+    """根据被引用的消息 ID 反查 server job_id，找不到返回 None"""
+    data = _load_json(IMAGE_JOB_FILE, {})
+    return data.get(str(message_id))

@@ -11,7 +11,7 @@ from ..data import find_character, find_variant, is_variant_matched
 from ..store import (
     is_blacklisted, is_super_admin, is_group_enabled,
     is_nsfw_filter_on, get_user_points, deduct_points,
-    get_draw_settings, append_request_log,
+    get_draw_settings, append_request_log, save_image_job,
 )
 from ..nsfw import check_nsfw
 from ..api import call_generate, poll_until_done
@@ -158,7 +158,17 @@ async def handle(event: GroupMessageEvent):
             reply_msg += MessageSegment.text(f"💰 消耗 {DRAW_COST} 积分，剩余: {remaining}\n")
 
         reply_msg += MessageSegment.image(f"base64://{b64}")
-        await matcher.send(reply_msg)
+        # 发送并获取 bot 发出的 message_id，记录到 job 映射供 HQ 引用反查
+        bot = event.get_bot()
+        receipt = await bot.send(event, reply_msg)
+        bot_msg_id = None
+        if receipt is not None:
+            if hasattr(receipt, "message_id"):
+                bot_msg_id = receipt.message_id
+            elif isinstance(receipt, dict):
+                bot_msg_id = receipt.get("message_id")
+        if bot_msg_id is not None:
+            save_image_job(str(bot_msg_id), job_id)
 
     except RuntimeError as e:
         logger.error(f"[EverPic] 生成失败: {e}")
