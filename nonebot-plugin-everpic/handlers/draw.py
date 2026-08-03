@@ -2,7 +2,7 @@ import base64
 import json
 from datetime import datetime
 import httpx
-from nonebot import on_message, logger
+from nonebot import on_message, logger, Bot
 from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent, MessageSegment, Message
 from nonebot.rule import Rule
 
@@ -50,7 +50,7 @@ def _parse_args(text: str):
 
 
 @matcher.handle()
-async def handle(event: GroupMessageEvent):
+async def handle(bot: Bot, event: GroupMessageEvent):
     # 群开关
     if not is_group_enabled(event.group_id):
         await matcher.finish("❌ 本群未开启 EverPic 画图功能，请联系超级管理员发送 everpic开启")
@@ -159,7 +159,6 @@ async def handle(event: GroupMessageEvent):
 
         reply_msg += MessageSegment.image(f"base64://{b64}")
         # 发送并获取 bot 发出的 message_id，记录到 job 映射供 HQ 引用反查
-        bot = event.get_bot()
         receipt = await bot.send(event, reply_msg)
         bot_msg_id = None
         if receipt is not None:

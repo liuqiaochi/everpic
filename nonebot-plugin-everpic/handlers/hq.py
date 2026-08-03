@@ -1,7 +1,7 @@
 """HQ 高清升级：引用本机器人生成的图片 + 文本「HQ」"""
 import base64
 import httpx
-from nonebot import on_message, logger
+from nonebot import on_message, logger, Bot
 from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent, MessageSegment, Message
 from nonebot.rule import Rule
 
@@ -39,7 +39,7 @@ def _extract_bot_msg_id(receipt):
 
 
 @hq_matcher.handle()
-async def handle_hq(event: GroupMessageEvent):
+async def handle_hq(bot: Bot, event: GroupMessageEvent):
     # 群开关
     if not is_group_enabled(event.group_id):
         await hq_matcher.finish("❌ 本群未开启 EverPic 画图功能，请联系超级管理员发送 everpic开启")
@@ -99,7 +99,6 @@ async def handle_hq(event: GroupMessageEvent):
             remaining = deduct_points(event.user_id, DRAW_COST)
             reply_msg += MessageSegment.text(f"💰 HQ 消耗 {DRAW_COST} 积分，剩余: {remaining}\n")
         reply_msg += MessageSegment.image(f"base64://{b64}")
-        bot = event.get_bot()
         receipt = await bot.send(event, reply_msg)
         bot_msg_id = _extract_bot_msg_id(receipt)
         if bot_msg_id is not None:
