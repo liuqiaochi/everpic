@@ -79,21 +79,35 @@ async def call_upscale(job_id: str) -> str:
     （官方网页在查看该图时 URL 最后一段即 job_id）。缺失会返回 HTTP 500。
     """
     async with httpx.AsyncClient(timeout=httpx.Timeout(30.0), trust_env=False) as client:
-        resp = await client.post(
-            EVERPIC_API + f"upscale/{job_id}",
-            headers={"Content-Type": "application/json", "Authorization": job_id},
-        )
-        logger.info(f"[EverPic] upscale 响应: {resp.status_code} {resp.text[:200]}")
+        last_text = ""
+        # 服务器偶发 5xx 时重试 2 次（退避 1s / 2s）
+        for attempt in range(3):
+            resp = await client.post(
+                EVERPIC_API + f"upscale/{job_id}",
+                headers={"Content-Type": "application/json", "Authorization": job_id},
+            )
+            logger.info(f"[EverPic] upscale 响应(第{attempt+1}次): {resp.status_code} {resp.text[:200]}")
+            last_text = resp.text
 
-        if resp.status_code == 404:
-            raise RuntimeError("原图不存在或已过期（HQ 需在原图生成后 7 天内操作）")
-        if resp.status_code == 429:
-            raise RuntimeError("HQ 队列已满，请稍后再试")
-        if not (200 <= resp.status_code < 300):
-            raise RuntimeError(f"服务器错误: HTTP {resp.status_code} {resp.text[:120]}")
+            if resp.status_code == 404:
+                raise RuntimeError("原图不存在或已过期（HQ 需在原图生成后 7 天内操作）")
+            if resp.status_code == 429:
+                raise RuntimeError("HQ 队列已满，请稍后再试")
+            # 5xx 视为临时错误，重试
+            if 500 <= resp.status_code < 600:
+                if attempt < 2:
+                    await asyncio.sleep(1 * (attempt + 1))
+                    continue
+                raise RuntimeError(f"服务器临时错误 (HTTP {resp.status_code})，请稍后重试。响应: {resp.text[:160]}")
+            if not (200 <= resp.status_code < 300):
+                raise RuntimeError(f"服务器错误: HTTP {resp.status_code} {resp.text[:120]}")
 
-        body = resp.json()
-        return str(body.get("id") or body.get("job_id") or body)
+            body = resp.json()
+            # 若该图之前已 HQ 过，服务器返回 existing:true 且携带已有 HQ 结果 id
+            if body.get("existing"):
+                logger.info(f"[EverPic] 该图已有 HQ 结果，直接复用: {body.get('id')}")
+            return str(body.get("id") or body.get("job_id") or body)
+        raise RuntimeError(f"服务器错误: HTTP {resp.status_code} {last_text[:120]}")
 
 
 async def poll_until_done(job_id: str, on_progress) -> bytes:
